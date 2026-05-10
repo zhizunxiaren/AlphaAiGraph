@@ -1,0 +1,11 @@
+.superpowers/
+node_modules/
+dist/
+.tmp/
+target/
+target*/
+src-tauri/gen/
+
+.claude/
+.claude-plugin/
+.codex/
