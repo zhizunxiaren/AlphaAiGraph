@@ -2,9 +2,11 @@
 node_modules/
 dist/
 .tmp/
+.playwright-mcp/
 target/
 target*/
 src-tauri/gen/
+*.tsbuildinfo
 
 .claude/
 .claude-plugin/

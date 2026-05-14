@@ -1,0 +1,8 @@
+[package]
+name = "alpha_agent_harness"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+alpha_graph_core = { path = "../alpha_graph_core" }
+serde = { version = "1", features = ["derive"] }
