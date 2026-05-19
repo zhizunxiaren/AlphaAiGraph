@@ -1,13 +1,23 @@
-import { Bot, CheckCircle2, CircleDot, Lightbulb, Radar, TriangleAlert } from "lucide-react";
+import {
+  Bot,
+  CheckCircle2,
+  ChevronsLeft,
+  CircleDot,
+  Lightbulb,
+  Radar,
+  TriangleAlert,
+} from "lucide-react";
 import type { KnowledgeAppState, ResearchNode } from "../types";
 import { jobStatusLabel, markerLabel } from "./labels";
 
 export function AgentFeed({
   state,
   selectedNode,
+  toggleCollapsed,
 }: {
   state: KnowledgeAppState;
   selectedNode?: ResearchNode;
+  toggleCollapsed: () => void;
 }) {
   const selectedMarkers = selectedNode
     ? state.markers.filter((marker) => selectedNode.markerIds.includes(marker.id))
@@ -23,7 +33,12 @@ export function AgentFeed({
           <span className="eyebrow">Agent Run Feed</span>
           <h2>研究过程流</h2>
         </div>
-        <span className="status-pill active">active</span>
+        <div className="panel-header-actions">
+          <span className="status-pill active">active</span>
+          <button className="icon-button pane-toggle" aria-expanded={true} aria-label="收起 Agent 研究过程流" onClick={toggleCollapsed}>
+            <ChevronsLeft size={16} aria-hidden="true" />
+          </button>
+        </div>
       </header>
 
       <section className="event-block event-primary">

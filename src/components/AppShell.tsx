@@ -1,4 +1,5 @@
 import { type MouseEvent, useEffect, useMemo, useState } from "react";
+import { Bot, PanelLeftOpen } from "lucide-react";
 import { projectRelationshipGraph } from "../research/projection";
 import type { InquiryContextPolicy, KnowledgeAppState } from "../types";
 import { AgentFeed } from "./AgentFeed";
@@ -48,6 +49,8 @@ export function AppShell({
   const [draftQuestion, setDraftQuestion] = useState("");
   const [sourceDrawerOpen, setSourceDrawerOpen] = useState(false);
   const [nodeInspectorOpen, setNodeInspectorOpen] = useState(true);
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  const [agentFeedCollapsed, setAgentFeedCollapsed] = useState(false);
   const [paneWidths, setPaneWidths] = useState(defaultPaneWidths);
   const [resizeDrag, setResizeDrag] = useState<ResizeDrag>();
   const relationshipGraph = useMemo(
@@ -66,9 +69,12 @@ export function AppShell({
 
   const selectedNode = state.researchMap.nodes.find((node) => node.id === state.selectedNodeId);
   const selectedPath = buildSelectedPath(state);
-  const cockpitColumns = nodeInspectorOpen
-    ? `${paneWidths.left}px 8px ${paneWidths.feed}px 8px minmax(0, 1fr) 8px ${paneWidths.inspector}px`
-    : `${paneWidths.left}px 8px ${paneWidths.feed}px 8px minmax(0, 1fr)`;
+  const cockpitColumns = buildCockpitColumns({
+    paneWidths,
+    leftPanelCollapsed,
+    agentFeedCollapsed,
+    nodeInspectorOpen,
+  });
 
   useEffect(() => {
     if (!resizeDrag) return undefined;
@@ -157,28 +163,55 @@ export function AppShell({
         className={[
           "cockpit-grid",
           nodeInspectorOpen ? "" : "inspector-closed",
+          leftPanelCollapsed ? "left-panel-collapsed" : "",
+          agentFeedCollapsed ? "agent-feed-collapsed" : "",
           resizeDrag ? "is-resizing" : "",
         ].join(" ")}
         style={{ gridTemplateColumns: cockpitColumns }}
       >
-        <LeftPanel state={state} setCanvasMode={setCanvasMode} openSourceDrawer={() => setSourceDrawerOpen(true)} />
-        <PaneResizer
-          label="调整研究对象导航宽度"
-          value={paneWidths.left}
-          min={paneBounds.left.min}
-          max={paneBounds.left.max}
-          onMouseDown={(event) => startPaneResize("left", "normal", event)}
-          onKeyboardResize={(delta) => resizePaneByKeyboard("left", "normal", delta)}
-        />
-        <AgentFeed state={state} selectedNode={selectedNode} />
-        <PaneResizer
-          label="调整研究过程流宽度"
-          value={paneWidths.feed}
-          min={paneBounds.feed.min}
-          max={paneBounds.feed.max}
-          onMouseDown={(event) => startPaneResize("feed", "normal", event)}
-          onKeyboardResize={(delta) => resizePaneByKeyboard("feed", "normal", delta)}
-        />
+        {leftPanelCollapsed || agentFeedCollapsed ? (
+          <CollapsedLeftRail
+            leftPanelCollapsed={leftPanelCollapsed}
+            agentFeedCollapsed={agentFeedCollapsed}
+            openLeftPanel={() => setLeftPanelCollapsed(false)}
+            openAgentFeed={() => setAgentFeedCollapsed(false)}
+          />
+        ) : null}
+        {!leftPanelCollapsed ? (
+          <>
+            <LeftPanel
+              state={state}
+              setCanvasMode={setCanvasMode}
+              openSourceDrawer={() => setSourceDrawerOpen(true)}
+              toggleCollapsed={() => setLeftPanelCollapsed(true)}
+            />
+            <PaneResizer
+              label="调整研究对象导航宽度"
+              value={paneWidths.left}
+              min={paneBounds.left.min}
+              max={paneBounds.left.max}
+              onMouseDown={(event) => startPaneResize("left", "normal", event)}
+              onKeyboardResize={(delta) => resizePaneByKeyboard("left", "normal", delta)}
+            />
+          </>
+        ) : null}
+        {!agentFeedCollapsed ? (
+          <>
+            <AgentFeed
+              state={state}
+              selectedNode={selectedNode}
+              toggleCollapsed={() => setAgentFeedCollapsed(true)}
+            />
+            <PaneResizer
+              label="调整研究过程流宽度"
+              value={paneWidths.feed}
+              min={paneBounds.feed.min}
+              max={paneBounds.feed.max}
+              onMouseDown={(event) => startPaneResize("feed", "normal", event)}
+              onKeyboardResize={(delta) => resizePaneByKeyboard("feed", "normal", delta)}
+            />
+          </>
+        ) : null}
         <GraphCanvas
           state={state}
           relationshipGraph={relationshipGraph}
@@ -219,6 +252,70 @@ export function AppShell({
       ) : null}
     </div>
   );
+}
+
+function CollapsedLeftRail({
+  leftPanelCollapsed,
+  agentFeedCollapsed,
+  openLeftPanel,
+  openAgentFeed,
+}: {
+  leftPanelCollapsed: boolean;
+  agentFeedCollapsed: boolean;
+  openLeftPanel: () => void;
+  openAgentFeed: () => void;
+}) {
+  return (
+    <aside className="panel collapsed-left-rail" aria-label="左侧折叠栏">
+      {leftPanelCollapsed ? (
+        <button
+          className="icon-button collapsed-rail-button"
+          aria-label="展开研究对象导航"
+          title="展开研究对象导航"
+          onClick={openLeftPanel}
+        >
+          <PanelLeftOpen size={18} aria-hidden="true" />
+        </button>
+      ) : null}
+      {agentFeedCollapsed ? (
+        <button
+          className="icon-button collapsed-rail-button"
+          aria-label="展开 Agent 研究过程流"
+          title="展开 Agent 研究过程流"
+          onClick={openAgentFeed}
+        >
+          <Bot size={18} aria-hidden="true" />
+        </button>
+      ) : null}
+    </aside>
+  );
+}
+
+function buildCockpitColumns({
+  paneWidths,
+  leftPanelCollapsed,
+  agentFeedCollapsed,
+  nodeInspectorOpen,
+}: {
+  paneWidths: Record<PaneKey, number>;
+  leftPanelCollapsed: boolean;
+  agentFeedCollapsed: boolean;
+  nodeInspectorOpen: boolean;
+}) {
+  const columns = [
+    ...(leftPanelCollapsed || agentFeedCollapsed ? [`${paneBounds.left.min}px`] : []),
+    ...(!leftPanelCollapsed ? [`${paneWidths.left}px`] : []),
+    ...(!leftPanelCollapsed ? ["8px"] : []),
+    ...(!agentFeedCollapsed ? [`${paneWidths.feed}px`] : []),
+    ...(!agentFeedCollapsed ? ["8px"] : []),
+    "minmax(0, 1fr)",
+  ];
+
+  if (nodeInspectorOpen) {
+    columns.push("8px", `${paneWidths.inspector}px`);
+  }
+
+  return columns.join(" ");
 }
 
 function PaneResizer({

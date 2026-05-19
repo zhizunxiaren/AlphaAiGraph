@@ -91,4 +91,32 @@ describe("deterministic research agent", () => {
     expect(expandedAgain).toEqual(expanded);
     expect(missing).toEqual(researchFixtures.map);
   });
+
+  it("does not reuse child ids when a partially expanded node is repaired", () => {
+    const target = researchFixtures.map.nodes.find((node) => node.title === "产品定位")!;
+    const existingChild = {
+      ...researchFixtures.map.nodes[0],
+      id: `${target.id}-child-1`,
+      parentNodeId: target.id,
+      title: "目标用户与主场景",
+      depth: target.depth + 1,
+      expansionState: "collapsed" as const,
+    };
+    const inconsistentMap = {
+      ...researchFixtures.map,
+      nodes: [...researchFixtures.map.nodes, existingChild],
+    };
+
+    const expanded = expandResearchNode(inconsistentMap, target.id);
+    const childIds = expanded.nodes
+      .filter((node) => node.parentNodeId === target.id)
+      .map((node) => node.id);
+
+    expect(new Set(childIds).size).toBe(childIds.length);
+    expect(childIds).toEqual(expect.arrayContaining([
+      `${target.id}-child-1`,
+      `${target.id}-child-2`,
+      `${target.id}-child-3`,
+    ]));
+  });
 });

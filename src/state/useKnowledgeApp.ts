@@ -242,6 +242,16 @@ export function mergeCandidateNode(state: KnowledgeAppState, candidateId: string
   if (!candidate.node.parentNodeId) {
     return { ...state, warnings: [...state.warnings, `Candidate ${candidateId} has no parent node`] };
   }
+  const conflictReason = candidateMergeConflictReason(state, candidate);
+  if (conflictReason) {
+    return {
+      ...state,
+      candidateNodes: state.candidateNodes.map((item) =>
+        item.id === candidateId ? { ...item, status: "needs_review", conflictReason } : item,
+      ),
+      warnings: [...state.warnings, `Candidate ${candidateId} requires review: ${conflictReason}`],
+    };
+  }
   return {
     ...state,
     researchMap: {
@@ -265,6 +275,34 @@ export function mergeCandidateNode(state: KnowledgeAppState, candidateId: string
       item.id === candidateId ? { ...item, status: "merged" } : item,
     ),
   };
+}
+
+function candidateMergeConflictReason(
+  state: KnowledgeAppState,
+  candidate: CandidateResearchNode,
+): string | undefined {
+  const nodeIdExists = state.researchMap.nodes.some((node) => node.id === candidate.node.id);
+  if (nodeIdExists) {
+    return "node id already exists";
+  }
+  const sameTitleSibling = state.researchMap.nodes.some(
+    (node) =>
+      node.parentNodeId === candidate.node.parentNodeId &&
+      node.title === candidate.node.title,
+  );
+  if (sameTitleSibling) {
+    return "same title under same parent";
+  }
+  const duplicateEdge = state.researchMap.edges.some(
+    (edge) =>
+      edge.fromNodeId === candidate.node.parentNodeId &&
+      edge.toNodeId === candidate.node.id &&
+      edge.kind === "contains",
+  );
+  if (duplicateEdge) {
+    return "candidate edge already exists";
+  }
+  return undefined;
 }
 
 export function transitionAgentJob(

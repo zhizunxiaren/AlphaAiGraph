@@ -202,6 +202,11 @@ export interface ParallelAnalysisGroup {
   updatedAt: IsoDateTime;
 }
 
+/**
+ * Candidate nodes keep a complete `ResearchNode` payload so reviewers can inspect
+ * the proposed merge without mutating the main map. Merge code must re-check node
+ * id, same-parent title, and edge conflicts immediately before inserting it.
+ */
 export interface CandidateResearchNode {
   id: string;
   groupId: string;

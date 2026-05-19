@@ -85,6 +85,8 @@ input:focus-visible {
 .canvas-toolbar,
 .inquiry-row,
 .section-title-row,
+.pane-toggle-row,
+.panel-header-actions,
 .feed-footer,
 .source-row,
 .support-actions p {
@@ -860,6 +862,33 @@ small {
 .icon-button {
   width: 34px;
   padding: 0;
+}
+
+.pane-toggle-row {
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.panel-header-actions {
+  gap: 8px;
+}
+
+.pane-toggle {
+  flex: 0 0 auto;
+}
+
+.collapsed-left-rail {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 10px;
+  overflow: hidden;
+  padding: 10px;
+  background: #f7f8f5;
+}
+
+.collapsed-rail-button {
+  color: var(--color-primary);
 }
 
 .source-list {

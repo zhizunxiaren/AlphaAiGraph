@@ -6,6 +6,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$TmpDir = Join-Path $ProjectRoot ".tmp"
+$PidFile = Join-Path $TmpDir "alphaaigraph-vite-$Port.pid"
 
 if ($Help) {
     Write-Host "Usage:"
@@ -17,32 +19,57 @@ if ($Help) {
 
 Set-Location $ProjectRoot
 
-$connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+$candidateProcessIds = New-Object System.Collections.Generic.List[int]
 
-if (-not $connections) {
-    Write-Host "No server is listening on port $Port."
+if (Test-Path -LiteralPath $PidFile) {
+    $pidText = (Get-Content -LiteralPath $PidFile -Raw).Trim()
+    if ($pidText -match "^\d+$") {
+        $candidateProcessIds.Add([int]$pidText)
+    }
+}
+
+$connections = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+foreach ($connection in $connections) {
+    if (-not $candidateProcessIds.Contains([int]$connection.OwningProcess)) {
+        $candidateProcessIds.Add([int]$connection.OwningProcess)
+    }
+}
+
+if ($candidateProcessIds.Count -eq 0) {
+    Write-Host "No AlphaAiGraph dev server was found on port $Port."
     exit 0
 }
 
-$processIds = $connections | Select-Object -ExpandProperty OwningProcess -Unique
+$stoppedAny = $false
 
-foreach ($processId in $processIds) {
+foreach ($processId in $candidateProcessIds) {
     $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $processId" -ErrorAction SilentlyContinue
-    $commandLine = if ($processInfo) { [string]$processInfo.CommandLine } else { "" }
-    $processName = if ($processInfo) { [string]$processInfo.Name } else { "PID $processId" }
-    $looksLikeDevServer = $commandLine -match "vite|npm|node_modules|node"
+    if (-not $processInfo) {
+        continue
+    }
 
-    if (-not $looksLikeDevServer -and -not $Force) {
-        Write-Host "Port $Port is owned by $processName ($processId), but it does not look like the AlphaAiGraph dev server."
+    $commandLine = [string]$processInfo.CommandLine
+    $processName = [string]$processInfo.Name
+    $isProjectDevServer =
+        $commandLine -like "*$ProjectRoot*" -or
+        $commandLine -match "alpha-ai-graph|alphaaigraph|vite|node_modules"
+
+    if (-not $isProjectDevServer -and -not $Force) {
+        Write-Host "PID $processId ($processName) does not look like the AlphaAiGraph dev server."
         Write-Host "Use -Force only if you are sure this process should be stopped."
         continue
     }
 
-    Write-Host "Stopping $processName ($processId) on port $Port..."
+    Write-Host "Stopping $processName ($processId)..."
     Stop-Process -Id $processId -Force
+    $stoppedAny = $true
 }
 
-Start-Sleep -Milliseconds 500
+if (Test-Path -LiteralPath $PidFile) {
+    Set-Content -LiteralPath $PidFile -Value ""
+}
+
+Start-Sleep -Milliseconds 700
 $stillListening = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
 
 if ($stillListening) {
@@ -50,4 +77,8 @@ if ($stillListening) {
     exit 1
 }
 
-Write-Host "Stopped server on port $Port."
+if ($stoppedAny) {
+    Write-Host "Stopped AlphaAiGraph dev server on port $Port."
+} else {
+    Write-Host "No matching AlphaAiGraph dev server was stopped."
+}

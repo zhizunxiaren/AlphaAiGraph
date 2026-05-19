@@ -77,6 +77,35 @@ describe("research workspace state", () => {
     expect(conflicting.candidateNodes.at(-1)?.conflictReason).toContain("same title");
   });
 
+  it("revalidates candidate node conflicts at merge time", () => {
+    const state = createInitialKnowledgeState();
+    const parentNodeId = state.researchMap.rootNodeId;
+    const withGroup = startParallelAnalysis(state, [parentNodeId], {
+      candidateTitle: "late conflict",
+    });
+    const candidate = withGroup.candidateNodes.at(-1)!;
+    const withLateConflict = {
+      ...withGroup,
+      researchMap: {
+        ...withGroup.researchMap,
+        nodes: [
+          ...withGroup.researchMap.nodes,
+          {
+            ...candidate.node,
+            id: "existing-late-conflict",
+            title: candidate.node.title,
+          },
+        ],
+      },
+    };
+
+    const next = mergeCandidateNode(withLateConflict, candidate.id);
+
+    expect(next.researchMap.nodes.some((node) => node.id === candidate.node.id)).toBe(false);
+    expect(next.candidateNodes.find((item) => item.id === candidate.id)?.status).toBe("needs_review");
+    expect(next.candidateNodes.find((item) => item.id === candidate.id)?.conflictReason).toContain("same title");
+  });
+
   it("rejects parallel analysis for missing nodes without creating orphan candidates", () => {
     const state = createInitialKnowledgeState();
     const next = startParallelAnalysis(state, ["missing-node"]);

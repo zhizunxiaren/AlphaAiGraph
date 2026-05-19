@@ -1,18 +1,26 @@
-import { Bot, FileText, GitBranch, Network, Route, SquareStack } from "lucide-react";
+import { Bot, ChevronsLeft, FileText, GitBranch, Network, Route, SquareStack } from "lucide-react";
 import type { KnowledgeAppState } from "../types";
 
 export function LeftPanel({
   state,
   setCanvasMode,
   openSourceDrawer,
+  toggleCollapsed,
 }: {
   state: KnowledgeAppState;
   setCanvasMode: (mode: KnowledgeAppState["canvasMode"]) => void;
   openSourceDrawer: () => void;
+  toggleCollapsed: () => void;
 }) {
   const selectedPath = buildSelectedPath(state);
+
   return (
     <aside className="panel left-panel" aria-label="研究对象导航">
+      <div className="pane-toggle-row">
+        <button className="icon-button pane-toggle" aria-expanded={true} aria-label="收起研究对象导航" onClick={toggleCollapsed}>
+          <ChevronsLeft size={16} aria-hidden="true" />
+        </button>
+      </div>
       <section className="agent-card">
         <Bot size={18} />
         <div>

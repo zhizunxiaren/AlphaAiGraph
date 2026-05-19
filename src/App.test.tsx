@@ -52,6 +52,44 @@ describe("AlphaAiGraph app shell", () => {
     expect(screen.getByRole("complementary", { name: "节点检查器" })).toBeInTheDocument();
   });
 
+  it("groups collapsed left cockpit panes into one icon rail", async () => {
+    const { container } = render(<App />);
+    const grid = container.querySelector(".cockpit-grid");
+    expect(grid).not.toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "收起研究对象导航" }));
+    expect(screen.getByRole("complementary", { name: "左侧折叠栏" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "展开研究对象导航" })).toBeInTheDocument();
+    expect(screen.queryByRole("separator", { name: "调整研究对象导航宽度" })).not.toBeInTheDocument();
+    expect(grid).toHaveStyle({
+      gridTemplateColumns: "76px 320px 8px minmax(0, 1fr) 8px 320px",
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "收起 Agent 研究过程流" }));
+    expect(screen.getByRole("button", { name: "展开 Agent 研究过程流" })).toBeInTheDocument();
+    expect(screen.queryByRole("separator", { name: "调整研究过程流宽度" })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("complementary", { name: "左侧折叠栏" })).getAllByRole("button")).toHaveLength(2);
+    expect(screen.queryByRole("complementary", { name: "Agent 研究过程流" })).not.toBeInTheDocument();
+    expect(grid).toHaveStyle({
+      gridTemplateColumns: "76px minmax(0, 1fr) 8px 320px",
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "展开研究对象导航" }));
+    expect(screen.getByRole("button", { name: "收起研究对象导航" })).toBeInTheDocument();
+    expect(screen.getByRole("separator", { name: "调整研究对象导航宽度" })).toBeInTheDocument();
+    expect(grid).toHaveStyle({
+      gridTemplateColumns: "76px 210px 8px minmax(0, 1fr) 8px 320px",
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "展开 Agent 研究过程流" }));
+    expect(screen.getByRole("button", { name: "收起 Agent 研究过程流" })).toBeInTheDocument();
+    expect(screen.getByRole("separator", { name: "调整研究过程流宽度" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "左侧折叠栏" })).not.toBeInTheDocument();
+    expect(grid).toHaveStyle({
+      gridTemplateColumns: "210px 8px 320px 8px minmax(0, 1fr) 8px 320px",
+    });
+  });
+
   it("lets users resize the cockpit panes by dragging separators", () => {
     const { container } = render(<App />);
 

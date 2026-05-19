@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   getResearchAgentResult,
   normalizeResearchPayload,
@@ -32,9 +32,17 @@ describe("tauri client boundary", () => {
       browser_local: true,
     });
 
-    expect(normalized.researchMap.rootNodeId).toBe("node-root");
-    expect(normalized.researchMap.edges[0].fromNodeId).toBe("a");
-    expect(normalized.evidenceAnchors[0].sourceAssetId).toBe("source-plan");
-    expect(normalized.browserLocal).toBe(true);
+    expect(normalized).toMatchObject({
+      researchMap: {
+        rootNodeId: "node-root",
+        edges: [{ fromNodeId: "a" }],
+      },
+      evidenceAnchors: [{ sourceAssetId: "source-plan" }],
+      browserLocal: true,
+    });
+  });
+
+  it("keeps normalized payloads out of the any type boundary", () => {
+    expectTypeOf(normalizeResearchPayload({ root_node_id: "node-root" })).not.toBeAny();
   });
 });

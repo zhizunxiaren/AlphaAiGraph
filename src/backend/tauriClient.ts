@@ -2,6 +2,14 @@ import { generateFirstLayerResearchMap } from "../research/researchAgent";
 import type { ResearchAgentResult } from "../research/researchAgent";
 import type { SourceAsset } from "../types";
 
+export type NormalizedResearchPayload =
+  | null
+  | boolean
+  | number
+  | string
+  | NormalizedResearchPayload[]
+  | { [key: string]: NormalizedResearchPayload };
+
 export interface BrowserLocalResearchResult {
   mode: "browser-local";
   object: ResearchAgentResult["object"];
@@ -38,7 +46,7 @@ export async function getResearchAgentResult(input: {
   };
 }
 
-export function normalizeResearchPayload(payload: unknown): any {
+export function normalizeResearchPayload(payload: unknown): NormalizedResearchPayload {
   if (Array.isArray(payload)) {
     return payload.map((item) => normalizeResearchPayload(item));
   }
@@ -50,7 +58,15 @@ export function normalizeResearchPayload(payload: unknown): any {
       ]),
     );
   }
-  return payload;
+  if (
+    payload === null ||
+    typeof payload === "string" ||
+    typeof payload === "number" ||
+    typeof payload === "boolean"
+  ) {
+    return payload;
+  }
+  return null;
 }
 
 function snakeToCamel(value: string): string {

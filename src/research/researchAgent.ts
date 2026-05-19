@@ -13,6 +13,7 @@ import type {
   EvidenceAnchor,
 } from "../types";
 import { researchNow, requiredFirstLayerTitles } from "./constants";
+import { createResearchMapIndexes } from "./mapIndexes";
 
 export interface ResearchAgentResult {
   object: ResearchObject;
@@ -183,14 +184,18 @@ export function generateFirstLayerResearchMap(input: {
 }
 
 export function expandResearchNode(map: ResearchMap, nodeId: string): ResearchMap {
-  const target = map.nodes.find((node) => node.id === nodeId);
+  const indexes = createResearchMapIndexes(map);
+  const target = indexes.nodesById.get(nodeId);
   if (!target || target.expansionState === "expanded") {
     return map;
   }
-  const children = expansionTemplates(target.title).filter(
-    (title) =>
-      !map.nodes.some((node) => node.parentNodeId === target.id && node.title === title),
-  );
+  const existingChildren = indexes.childrenByParentId(target.id);
+  const children = expansionTemplates(target.title)
+    .map((title, index) => ({ title, index }))
+    .filter(
+      ({ title }) =>
+        !existingChildren.some((node) => node.title === title),
+    );
   if (children.length === 0) {
     return {
       ...map,
@@ -200,22 +205,27 @@ export function expandResearchNode(map: ResearchMap, nodeId: string): ResearchMa
       updatedAt: researchNow,
     };
   }
-  const newNodes = children.map((title, index): ResearchNode => ({
-    id: `${target.id}-child-${index + 1}`,
-    mapId: map.id,
-    parentNodeId: target.id,
-    kind: index === 0 ? "question" : "finding",
-    title,
-    summary: `${target.title} 的下一层研究问题。`,
-    depth: target.depth + 1,
-    status: "open",
-    expansionState: "collapsed",
-    markerIds: [],
-    evidenceIds: [],
-    actionIds: [],
-    createdAt: researchNow,
-    updatedAt: researchNow,
-  }));
+  const usedNodeIds = new Set(map.nodes.map((node) => node.id));
+  const newNodes = children.map(({ title, index }): ResearchNode => {
+    const id = nextChildNodeId(target.id, index + 1, usedNodeIds);
+    usedNodeIds.add(id);
+    return {
+      id,
+      mapId: map.id,
+      parentNodeId: target.id,
+      kind: index === 0 ? "question" : "finding",
+      title,
+      summary: `${target.title} 的下一层研究问题。`,
+      depth: target.depth + 1,
+      status: "open",
+      expansionState: "collapsed",
+      markerIds: [],
+      evidenceIds: [],
+      actionIds: [],
+      createdAt: researchNow,
+      updatedAt: researchNow,
+    };
+  });
   const newEdges = newNodes.map((node, index): ResearchEdge => ({
     id: `${target.id}-edge-${index + 1}`,
     mapId: map.id,
@@ -260,4 +270,14 @@ function expansionTemplates(title: string): string[] {
     关系图谱投影: ["字段映射", "边语义", "无状态再生成"],
   };
   return templates[title] ?? [`${title} 关键问题`, `${title} 验证路径`];
+}
+
+function nextChildNodeId(parentNodeId: string, preferredIndex: number, usedNodeIds: Set<string>): string {
+  let index = preferredIndex;
+  let id = `${parentNodeId}-child-${index}`;
+  while (usedNodeIds.has(id)) {
+    index += 1;
+    id = `${parentNodeId}-child-${index}`;
+  }
+  return id;
 }
