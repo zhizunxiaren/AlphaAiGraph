@@ -1,0 +1,7 @@
+[workspace]
+members = [
+  "crates/alpha_graph_core",
+  "crates/alpha_agent_harness",
+  "crates/alpha_exporters"
+]
+resolver = "2"
