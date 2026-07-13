@@ -130,10 +130,12 @@ export function NodeInspector({ workspace, collapsed, onToggleCollapsed }: NodeI
             <strong>{candidate.node.title}</strong>
             <span>{candidate.status}</span>
             {candidate.conflictReason ? <small>{candidate.conflictReason}</small> : null}
-            <div>
-              <button type="button" onClick={() => workspace.mergeCandidate(candidate.id)}>合并</button>
-              <button type="button" onClick={() => workspace.dismissCandidate(candidate.id)}>忽略</button>
-            </div>
+            {candidate.status === "pending_review" || candidate.status === "needs_review" ? (
+              <div>
+                <button type="button" disabled={candidate.status === "needs_review"} onClick={() => workspace.mergeCandidate(candidate.id)}>合并</button>
+                <button type="button" onClick={() => workspace.dismissCandidate(candidate.id)}>忽略</button>
+              </div>
+            ) : null}
           </div>
         ))}
       </section>

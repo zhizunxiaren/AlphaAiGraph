@@ -11,7 +11,6 @@ import type {
   ResearchWorkspaceSnapshot,
   SourceAsset
 } from "../types";
-import { researchNow } from "./fixtures";
 
 export const projectionMapping = {
   researchNodeSourceId: "ResearchNode.id -> RelationshipGraphNode.sourceId",
@@ -21,7 +20,7 @@ export const projectionMapping = {
   evidenceSourceId: "EvidenceAnchor.id -> RelationshipGraphNode.sourceId"
 } as const;
 
-export function projectRelationshipGraph(input: ResearchWorkspaceSnapshot): RelationshipGraph {
+export function projectRelationshipGraph(input: ResearchWorkspaceSnapshot, generatedAt = new Date().toISOString()): RelationshipGraph {
   const nodes: RelationshipGraphNode[] = [
     objectNode(input.object),
     ...input.sourceAssets.map(sourceNode),
@@ -64,7 +63,7 @@ export function projectRelationshipGraph(input: ResearchWorkspaceSnapshot): Rela
       id: `rg-${edge.id}`,
       fromNodeId: `rg-${edge.fromNodeId}`,
       toNodeId: `rg-${edge.toNodeId}`,
-      relation: edge.kind === "depends_on" ? "depends_on" as const : edge.kind === "contradicts" ? "contradicts" as const : "related_to" as const,
+      relation: projectEdgeRelation(edge.kind),
       confidence: edge.confidence
     }))
   );
@@ -108,8 +107,26 @@ export function projectRelationshipGraph(input: ResearchWorkspaceSnapshot): Rela
     generatedFromMapIds: [input.map.id],
     nodes,
     edges,
-    generatedAt: researchNow
+    generatedAt
   };
+}
+
+function projectEdgeRelation(kind: ResearchMap["edges"][number]["kind"]): RelationshipGraphEdge["relation"] {
+  switch (kind) {
+    case "depends_on":
+      return "depends_on";
+    case "contradicts":
+      return "contradicts";
+    case "supports":
+    case "evidence_for":
+      return "supports";
+    case "explains":
+      return "explains";
+    case "validates":
+      return "validated_by";
+    default:
+      return "related_to";
+  }
 }
 
 function objectNode(object: ResearchObject): RelationshipGraphNode {

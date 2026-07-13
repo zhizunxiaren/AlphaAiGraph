@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { initialWorkspace, researchNow } from "../research/fixtures";
+import { initialWorkspace } from "../research/fixtures";
 import { expandResearchNode } from "../research/researchAgent";
 import { projectRelationshipGraph } from "../research/projection";
 import type {
@@ -71,14 +71,24 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
           const exists = current.map.nodes.some((item) => item.id === nodeId);
           return { ...current, warning: exists ? "该节点已经展开，不会重复生成子节点。" : `找不到节点：${nodeId}` };
         }
+        const timestamp = nowIso();
+        const threadId = current.threads[0]?.id;
+        const jobId = createEntityId(`job-expand-${nodeId}`);
         return {
           ...current,
           map: nextMap,
           selectedNodeId: nodeId,
+          threads: threadId
+            ? current.threads.map((thread) =>
+                thread.id === threadId
+                  ? { ...thread, jobIds: thread.jobIds.concat(jobId), updatedAt: timestamp }
+                  : thread
+              )
+            : current.threads,
           jobs: current.jobs.concat({
-            id: `job-expand-${nodeId}`,
+            id: jobId,
             sessionId: current.session.id,
-            threadId: current.threads[0]?.id,
+            threadId,
             mapId: current.map.id,
             nodeIds: [nodeId],
             sourceAssetIds: current.sourceAssets.map((item) => item.id),
@@ -91,9 +101,9 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
             outputEvidenceIds: [],
             outputRunIds: [],
             outputDigestIds: [],
-            startedAt: researchNow,
-            finishedAt: researchNow,
-            createdAt: researchNow
+            startedAt: timestamp,
+            finishedAt: timestamp,
+            createdAt: timestamp
           }),
           warning: undefined
         };
@@ -106,7 +116,13 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
         return undefined;
       }
 
-      const copyId = nextCopyId(state.map, nodeId);
+      if (sourceNode.id === state.map.rootNodeId || !sourceNode.parentId) {
+        setState((current) => ({ ...current, warning: "根节点不能复制，研究地图必须保持单一根节点。" }));
+        return undefined;
+      }
+
+      const copyId = createEntityId(`${nodeId}-copy`);
+      const timestamp = nowIso();
       const copyNode: ResearchNode = {
         ...sourceNode,
         id: copyId,
@@ -118,8 +134,8 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
         inquiryIds: [],
         conceptNoteIds: [],
         createdBy: "user",
-        createdAt: researchNow,
-        updatedAt: researchNow,
+        createdAt: timestamp,
+        updatedAt: timestamp,
         provenance: { sourceNodeId: nodeId }
       };
       const copyEdge = sourceNode.parentId
@@ -131,7 +147,7 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
             label: "copied_from",
             confidence: 1,
             createdBy: "user" as const,
-            createdAt: researchNow,
+            createdAt: timestamp,
             provenance: { sourceNodeId: nodeId }
           }
         : undefined;
@@ -149,7 +165,7 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
             ...current.map,
             nodes: nextNodes,
             edges: copyEdge ? current.map.edges.concat(copyEdge) : current.map.edges,
-            updatedAt: researchNow
+            updatedAt: timestamp
           },
           warning: "已复制节点；副本进入当前研究地图，可继续移动或编辑。"
         };
@@ -169,7 +185,8 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
         if (!trimmed) {
           return { ...current, warning: "旁路问题不能为空。" };
         }
-        const id = `inquiry-${nodeId}-${current.sideInquiries.length + 1}`;
+        const id = createEntityId(`inquiry-${nodeId}`);
+        const timestamp = nowIso();
         const inquiry: SideInquirySession = {
           id,
           researchSessionId: current.session.id,
@@ -180,26 +197,22 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
           contextPolicy: policy,
           status: "open",
           messages: [
-            { id: `${id}-user`, inquiryId: id, role: "user", content: trimmed, createdAt: researchNow },
+            { id: `${id}-user`, inquiryId: id, role: "user", content: trimmed, createdAt: timestamp },
             {
               id: `${id}-agent`,
               inquiryId: id,
               role: "agent",
               content: `基于 ${policy} 上下文：这是隔离旁路会话，默认不会修改主研究图。`,
-              createdAt: researchNow
+              createdAt: timestamp
             }
           ],
-          createdAt: researchNow,
-          updatedAt: researchNow
+          createdAt: timestamp,
+          updatedAt: timestamp
         };
         return {
           ...current,
           sideInquiries: current.sideInquiries.concat(inquiry),
-          map: {
-            ...current.map,
-            nodes: current.map.nodes.map((item) => (item.id === nodeId ? { ...item, inquiryIds: item.inquiryIds.concat(id) } : item))
-          },
-          warning: "旁路会话已创建；除 inquiry 引用外，主研究图结构未改变。"
+          warning: "旁路会话已创建；主研究图保持不变。"
         };
       });
     },
@@ -209,6 +222,7 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
         if (!inquiry || inquiry.status === "discarded") {
           return { ...current, warning: "该旁路会话不能沉淀。" };
         }
+        const timestamp = nowIso();
         const note: ConceptNote = {
           id: `concept-${inquiryId}`,
           objectId: current.object.id,
@@ -219,13 +233,24 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
           relatedNodeIds: inquiry.sourceNodeId ? [inquiry.sourceNodeId] : [],
           evidenceIds: [],
           status: "accepted",
-          createdAt: researchNow,
-          updatedAt: researchNow
+          createdAt: timestamp,
+          updatedAt: timestamp
         };
         return {
           ...current,
-          sideInquiries: current.sideInquiries.map((item) => (item.id === inquiryId ? { ...item, status: "promoted", updatedAt: researchNow } : item)),
+          sideInquiries: current.sideInquiries.map((item) => (item.id === inquiryId ? { ...item, status: "promoted", updatedAt: timestamp } : item)),
           conceptNotes: current.conceptNotes.some((item) => item.id === note.id) ? current.conceptNotes : current.conceptNotes.concat(note),
+          map: inquiry.sourceNodeId
+            ? {
+                ...current.map,
+                nodes: current.map.nodes.map((node) =>
+                  node.id === inquiry.sourceNodeId && !node.conceptNoteIds.includes(note.id)
+                    ? { ...node, conceptNoteIds: node.conceptNoteIds.concat(note.id), updatedAt: timestamp }
+                    : node
+                ),
+                updatedAt: timestamp
+              }
+            : current.map,
           warning: "旁路会话已沉淀为 ConceptNote，并进入关系图谱投影。"
         };
       });
@@ -236,8 +261,10 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
         if (scopedNodes.length === 0) {
           return { ...current, warning: "请选择至少一个有效节点启动并行研究。" };
         }
-        const groupId = `group-${current.parallelGroups.length + 1}`;
-        const jobId = `job-${groupId}-fanout`;
+        const groupId = createEntityId("group");
+        const jobId = createEntityId(`job-${groupId}-fanout`);
+        const timestamp = nowIso();
+        const threadId = current.threads[0]?.id;
         const parentNodeId = scopedNodes[0];
         const parent = current.map.nodes.find((item) => item.id === parentNodeId)!;
         const candidateNode: ResearchNode = {
@@ -257,8 +284,8 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
           inquiryIds: [],
           conceptNoteIds: [],
           createdBy: "agent",
-          createdAt: researchNow,
-          updatedAt: researchNow,
+          createdAt: timestamp,
+          updatedAt: timestamp,
           provenance: { groupId, jobId, sourceNodeId: parentNodeId }
         };
         const candidate: CandidateResult = {
@@ -274,20 +301,27 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
             kind: "decomposes_to",
             confidence: 0.76,
             createdBy: "agent",
-            createdAt: researchNow,
+            createdAt: timestamp,
             provenance: candidateNode.provenance
           },
           status: current.map.nodes.some((item) => item.parentId === parentNodeId && item.title === candidateNode.title) ? "needs_review" : "pending_review",
           conflictReason: current.map.nodes.some((item) => item.parentId === parentNodeId && item.title === candidateNode.title) ? "同一父节点下已有同名节点。" : undefined,
-          createdAt: researchNow
+          createdAt: timestamp
         };
         return {
           ...current,
+          threads: threadId
+            ? current.threads.map((thread) =>
+                thread.id === threadId
+                  ? { ...thread, jobIds: thread.jobIds.concat(jobId), updatedAt: timestamp }
+                  : thread
+              )
+            : current.threads,
           parallelGroups: current.parallelGroups.concat({
             id: groupId,
             sessionId: current.session.id,
             mapId: current.map.id,
-            threadId: current.threads[0]?.id,
+            threadId,
             title: "节点组并行分析",
             mode: scopedNodes.length > 1 ? "fan_out" : "evidence_sweep",
             inputNodeIds: scopedNodes,
@@ -295,13 +329,13 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
             jobIds: [jobId],
             mergePolicy: "manual_review",
             status: "ready_to_review",
-            createdAt: researchNow,
-            updatedAt: researchNow
+            createdAt: timestamp,
+            updatedAt: timestamp
           }),
           jobs: current.jobs.concat({
             id: jobId,
             sessionId: current.session.id,
-            threadId: current.threads[0]?.id,
+            threadId,
             mapId: current.map.id,
             nodeIds: scopedNodes,
             sourceAssetIds: current.sourceAssets.map((item) => item.id),
@@ -314,9 +348,9 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
             outputEvidenceIds: [],
             outputRunIds: [],
             outputDigestIds: [],
-            startedAt: researchNow,
-            finishedAt: researchNow,
-            createdAt: researchNow
+            startedAt: timestamp,
+            finishedAt: timestamp,
+            createdAt: timestamp
           }),
           candidates: current.candidates.concat(candidate),
           warning: "并行研究已完成，结果进入候选区，尚未写入主图。"
@@ -345,26 +379,45 @@ export function useResearchWorkspace(seed: ResearchWorkspaceSnapshot = initialWo
             warning: "候选结果存在同名冲突，已转入 needs_review。"
           };
         }
+        const timestamp = nowIso();
+        const nextCandidates = current.candidates.map((item) =>
+          item.id === candidateId ? { ...item, status: "merged" as const } : item
+        );
         return {
           ...current,
           map: {
             ...current.map,
             nodes: current.map.nodes.concat({ ...candidate.node, status: "understood" }),
             edges: current.map.edges.concat(candidate.edge),
-            updatedAt: researchNow
+            updatedAt: timestamp
           },
-          candidates: current.candidates.map((item) => (item.id === candidateId ? { ...item, status: "merged" } : item)),
+          candidates: nextCandidates,
+          parallelGroups: updateParallelGroupStatus(current.parallelGroups, nextCandidates, candidate.groupId, timestamp),
           selectedNodeId: candidate.node.id,
           warning: "候选结果已显式合并进主研究图，并保留 provenance。"
         };
       });
     },
     dismissCandidate(candidateId) {
-      setState((current) => ({
-        ...current,
-        candidates: current.candidates.map((item) => (item.id === candidateId ? { ...item, status: "dismissed" } : item)),
-        warning: "候选结果已忽略；provenance 仍保留在候选记录中。"
-      }));
+      setState((current) => {
+        const candidate = current.candidates.find((item) => item.id === candidateId);
+        if (!candidate) {
+          return { ...current, warning: `找不到候选结果：${candidateId}` };
+        }
+        if (candidate.status !== "pending_review" && candidate.status !== "needs_review") {
+          return { ...current, warning: "只有待审核候选结果可以忽略。" };
+        }
+        const timestamp = nowIso();
+        const nextCandidates = current.candidates.map((item) =>
+          item.id === candidateId ? { ...item, status: "dismissed" as const } : item
+        );
+        return {
+          ...current,
+          candidates: nextCandidates,
+          parallelGroups: updateParallelGroupStatus(current.parallelGroups, nextCandidates, candidate.groupId, timestamp),
+          warning: "候选结果已忽略；provenance 仍保留在候选记录中。"
+        };
+      });
     },
     openSourceList() {
       setState((current) => ({ ...current, activeEvidenceId: undefined, isSourceDrawerOpen: true, warning: undefined }));
@@ -389,12 +442,28 @@ function buildPath(map: ResearchMap, nodeId: string): ResearchNode[] {
   return path;
 }
 
-function nextCopyId(map: ResearchMap, nodeId: string) {
-  let index = 1;
-  let candidate = `${nodeId}-copy-${index}`;
-  while (map.nodes.some((node) => node.id === candidate)) {
-    index += 1;
-    candidate = `${nodeId}-copy-${index}`;
+function nowIso() {
+  return new Date().toISOString();
+}
+
+let entitySequence = 0;
+
+function createEntityId(prefix: string) {
+  entitySequence += 1;
+  return `${prefix}-${Date.now().toString(36)}-${entitySequence.toString(36)}`;
+}
+
+function updateParallelGroupStatus(
+  groups: ResearchWorkspaceSnapshot["parallelGroups"],
+  candidates: CandidateResult[],
+  groupId: string,
+  updatedAt: string
+) {
+  const groupCandidates = candidates.filter((candidate) => candidate.groupId === groupId);
+  const allTerminal = groupCandidates.length > 0 && groupCandidates.every((candidate) => candidate.status === "merged" || candidate.status === "dismissed");
+  if (!allTerminal) {
+    return groups;
   }
-  return candidate;
+  const nextStatus = groupCandidates.some((candidate) => candidate.status === "merged") ? "merged" as const : "cancelled" as const;
+  return groups.map((group) => group.id === groupId ? { ...group, status: nextStatus, updatedAt } : group);
 }

@@ -67,6 +67,18 @@ test("supports node selection, drill-down, relationship mode, and source drawer"
   expect(screen.getByText("资料抽屉")).toBeInTheDocument();
 });
 
+test("keeps a selected deep node visible on the research canvas", () => {
+  render(<App />);
+  const canvas = within(screen.getByLabelText("Research Workflow Canvas"));
+
+  fireEvent.click(canvas.getByRole("button", { name: /研究工作流脑图/ }));
+  fireEvent.click(screen.getByRole("button", { name: /深入研究/ }));
+  const deepNode = canvas.getByRole("button", { name: /节点状态/ });
+  fireEvent.click(deepNode);
+
+  expect(canvas.getByRole("button", { name: /节点状态/ })).toHaveAttribute("aria-pressed", "true");
+});
+
 test("allows research map nodes to be dragged on the canvas", () => {
   render(<App />);
 

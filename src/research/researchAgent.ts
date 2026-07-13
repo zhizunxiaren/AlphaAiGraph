@@ -1,4 +1,3 @@
-import { researchNow } from "./fixtures";
 import type { AgentMarker, ResearchEdge, ResearchMap, ResearchNode, SourceAsset } from "../types";
 
 const slug = (value: string) =>
@@ -17,32 +16,32 @@ const marker = (nodeId: string, kind: AgentMarker["kind"], label: string, reason
 });
 
 const expansionTemplates: Record<string, Array<{ title: string; summary: string; kind: ResearchNode["kind"]; markers: AgentMarker["kind"][] }>> = {
-  "node-product-positioning": [
+  "产品定位": [
     { title: "非聊天主轴", summary: "Agent 流是结构化研究事件，不是普通聊天。", kind: "finding", markers: ["focus"] },
     { title: "非静态脑图", summary: "节点必须携带状态、证据、动作和下钻能力。", kind: "finding", markers: ["difficulty"] },
     { title: "第一屏心智", summary: "用户应立即看到研究地图和推荐路径。", kind: "conclusion", markers: ["core_entry"] }
   ],
-  "node-workflow-map": [
+  "研究工作流脑图": [
     { title: "节点状态", summary: "区分未展开、展开中、已展开和失败。", kind: "concept", markers: ["focus"] },
     { title: "Marker 理由", summary: "重点、难点、风险和待验证必须解释原因。", kind: "concept", markers: ["recommended_drilldown"] },
     { title: "渐进式下钻", summary: "一次只展开选中节点的一层。", kind: "action", markers: ["needs_validation"] }
   ],
-  "node-parallel-research": [
+  "并行研究": [
     { title: "候选区隔离", summary: "并行任务输出先进入 candidate result。", kind: "risk", markers: ["risk"] },
     { title: "手动合并", summary: "用户显式点击合并后才写入主图。", kind: "action", markers: ["needs_validation"] },
     { title: "任务独立状态", summary: "同组 job 可独立成功、失败、取消或重试。", kind: "concept", markers: ["difficulty"] }
   ],
-  "node-side-inquiry": [
+  "旁路临时会话": [
     { title: "local_node 上下文", summary: "只围绕当前节点解释，不污染主线。", kind: "concept", markers: ["focus"] },
     { title: "显式沉淀", summary: "用户选择后才生成 ConceptNote。", kind: "action", markers: ["needs_validation"] },
     { title: "主图不变", summary: "创建和追问不会改变 nodes 或 edges。", kind: "finding", markers: ["risk"] }
   ],
-  "node-evidence-validation": [
+  "证据与验证": [
     { title: "证据锚点", summary: "每个判断可以追溯到文档、代码或命令输出。", kind: "evidence", markers: ["focus"] },
     { title: "验证动作", summary: "命令和脚本作为 action 提出，执行需批准。", kind: "action", markers: ["needs_validation"] },
     { title: "执行结果", summary: "运行结果回填为 ExecutionRun 和 evidence。", kind: "result", markers: ["recommended_drilldown"] }
   ],
-  "node-relationship-projection": [
+  "关系图谱投影": [
     { title: "投影节点", summary: "ResearchNode 映射为 RelationshipGraphNode。", kind: "concept", markers: ["focus"] },
     { title: "来源追溯", summary: "sourceId 保留原始 research 或 evidence id。", kind: "evidence", markers: ["needs_validation"] },
     { title: "非主数据源", summary: "关系图谱可以重建，不能绕过研究数据编辑。", kind: "risk", markers: ["risk"] }
@@ -54,13 +53,21 @@ const genericTemplate = [
   { title: "证据线索", summary: "整理当前节点需要查看的证据。", kind: "evidence" as const, markers: ["needs_validation" as const] }
 ];
 
-export function generateFirstLayerResearchMap(objectId: string, title: string, sourceAssets: SourceAsset[]): ResearchMap {
-  const rootId = `node-${slug(title)}-root`;
+export function generateFirstLayerResearchMap(
+  objectId: string,
+  sessionId: string,
+  title: string,
+  sourceAssets: SourceAsset[],
+  createdAt = new Date().toISOString()
+): ResearchMap {
+  const scopeId = `${slug(objectId)}-${slug(sessionId)}`;
+  const mapId = `map-${scopeId}`;
+  const rootId = `node-${scopeId}-root`;
   const children = ["产品定位", "研究工作流脑图", "并行研究", "旁路临时会话", "证据与验证", "关系图谱投影"];
   const nodes: ResearchNode[] = [
     {
       id: rootId,
-      mapId: "generated-map",
+      mapId,
       kind: "root",
       title,
       summary: `基于 ${sourceAssets.length} 个资料生成第一层研究地图。`,
@@ -74,14 +81,14 @@ export function generateFirstLayerResearchMap(objectId: string, title: string, s
       inquiryIds: [],
       conceptNoteIds: [],
       createdBy: "agent",
-      createdAt: researchNow,
-      updatedAt: researchNow
+      createdAt,
+      updatedAt: createdAt
     },
     ...children.map((childTitle, index) => {
-      const id = `node-generated-${slug(childTitle)}`;
+      const id = `node-${scopeId}-${slug(childTitle)}`;
       return {
         id,
-        mapId: "generated-map",
+        mapId,
         parentId: rootId,
         kind: "section" as const,
         title: childTitle,
@@ -96,8 +103,8 @@ export function generateFirstLayerResearchMap(objectId: string, title: string, s
         inquiryIds: [],
         conceptNoteIds: [],
         createdBy: "agent" as const,
-        createdAt: researchNow,
-        updatedAt: researchNow
+        createdAt,
+        updatedAt: createdAt
       };
     })
   ];
@@ -111,28 +118,28 @@ export function generateFirstLayerResearchMap(objectId: string, title: string, s
       kind: "decomposes_to",
       confidence: 0.86,
       createdBy: "agent",
-      createdAt: researchNow
+      createdAt
     }));
 
   return {
-    id: "generated-map",
-    sessionId: "generated-session",
+    id: mapId,
+    sessionId,
     title: `${title} 第一层研究地图`,
     rootNodeId: rootId,
     nodes,
     edges,
-    createdAt: researchNow,
-    updatedAt: researchNow
+    createdAt,
+    updatedAt: createdAt
   };
 }
 
-export function expandResearchNode(map: ResearchMap, nodeId: string): ResearchMap {
+export function expandResearchNode(map: ResearchMap, nodeId: string, updatedAt = new Date().toISOString()): ResearchMap {
   const target = map.nodes.find((item) => item.id === nodeId);
   if (!target || target.expansionState === "expanded") {
     return map;
   }
 
-  const template = expansionTemplates[nodeId] ?? genericTemplate;
+  const template = expansionTemplates[target.title] ?? genericTemplate;
   const existingTitles = new Set(map.nodes.filter((item) => item.parentId === nodeId).map((item) => item.title));
   const nextNodes = template
     .filter((item) => !existingTitles.has(item.title))
@@ -155,8 +162,8 @@ export function expandResearchNode(map: ResearchMap, nodeId: string): ResearchMa
         inquiryIds: [],
         conceptNoteIds: [],
         createdBy: "agent" as const,
-        createdAt: researchNow,
-        updatedAt: researchNow
+        createdAt: updatedAt,
+        updatedAt
       };
     });
 
@@ -167,14 +174,14 @@ export function expandResearchNode(map: ResearchMap, nodeId: string): ResearchMa
     kind: "decomposes_to",
     confidence: 0.82,
     createdBy: "agent",
-    createdAt: researchNow
+    createdAt: updatedAt
   }));
 
   return {
     ...map,
-    nodes: map.nodes.map((item) => (item.id === nodeId ? { ...item, expansionState: "expanded" as const, updatedAt: researchNow } : item)).concat(nextNodes),
+    nodes: map.nodes.map((item) => (item.id === nodeId ? { ...item, expansionState: "expanded" as const, updatedAt } : item)).concat(nextNodes),
     edges: map.edges.concat(nextEdges),
-    updatedAt: researchNow
+    updatedAt
   };
 }
 

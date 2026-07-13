@@ -41,7 +41,7 @@ export function AgentFeed({ workspace, collapsed, mergedIntoProjectRail, onToggl
       </div>
       {workspace.candidates.filter((candidate) => candidate.status !== "dismissed").map((candidate) => (
         <div className={`event-block candidate ${candidate.status}`} key={candidate.id}>
-          <div className="event-title"><AlertTriangle size={15} /> 候选结果待审核</div>
+          <div className="event-title"><AlertTriangle size={15} /> {candidate.status === "merged" ? "候选结果已合并" : "候选结果待审核"}</div>
           <p>{candidate.node.title}</p>
           <small>{candidate.status}{candidate.conflictReason ? ` · ${candidate.conflictReason}` : ""}</small>
         </div>

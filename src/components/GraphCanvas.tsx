@@ -58,14 +58,15 @@ export function GraphCanvas({ workspace }: GraphCanvasProps) {
   const suppressNextClickRef = useRef(false);
   const root = workspace.map.nodes.find((node) => node.id === workspace.map.rootNodeId);
   const children = workspace.map.nodes.filter((node) => node.parentId === root?.id);
-  const selectedChildren =
-    workspace.selectedNode && workspace.selectedNode.id !== root?.id
-      ? workspace.map.nodes.filter((node) => node.parentId === workspace.selectedNode?.id)
-      : [];
-  const visibleNodes = uniqueNodes([root, ...children, ...selectedChildren].filter(Boolean) as ResearchNode[]);
+  const selectedDescendants = workspace.selectedNode
+    ? workspace.map.nodes.filter((node) => node.parentId === workspace.selectedNode?.id)
+    : [];
+  const selectedPathNodes = workspace.selectedPath.filter((node) => node.depth > 1);
+  const activeBranchNodes = uniqueNodes(selectedPathNodes.concat(selectedDescendants));
+  const visibleNodes = uniqueNodes([root, ...children, ...activeBranchNodes].filter(Boolean) as ResearchNode[]);
   const visibleIds = new Set(visibleNodes.map((node) => node.id));
   const visibleEdges = workspace.map.edges.filter((edge) => visibleIds.has(edge.fromNodeId) && visibleIds.has(edge.toNodeId));
-  const layoutByNodeId = useMemo(() => buildNodeLayouts(root, children, selectedChildren), [root, children, selectedChildren]);
+  const layoutByNodeId = useMemo(() => buildNodeLayouts(root, children, activeBranchNodes), [root, children, activeBranchNodes]);
   const canvasHeight = Math.max(760, ...Object.values(layoutByNodeId).map((layout) => layout.y + layout.height + 90));
 
   if (workspace.canvasMode === "relationship_graph") {
@@ -104,8 +105,12 @@ export function GraphCanvas({ workspace }: GraphCanvasProps) {
     let activeNodeId = nodeId;
     let activeStartOffset = sourceOffset;
     if (event.altKey) {
-      activeNodeId = workspace.duplicateNode(nodeId) ?? nodeId;
-      activeStartOffset = duplicateStartOffset(nodeId, activeNodeId, sourceOffset, layoutByNodeId, root, children, selectedChildren);
+      const duplicateId = workspace.duplicateNode(nodeId);
+      if (!duplicateId) {
+        return;
+      }
+      activeNodeId = duplicateId;
+      activeStartOffset = duplicateStartOffset(nodeId, activeNodeId, sourceOffset, layoutByNodeId, root, children, activeBranchNodes);
       setNodeOffsets((current) => ({
         ...current,
         [activeNodeId]: activeStartOffset
@@ -281,7 +286,7 @@ function uniqueNodes(nodes: ResearchNode[]) {
   });
 }
 
-function buildNodeLayouts(root: ResearchNode | undefined, children: ResearchNode[], selectedChildren: ResearchNode[]) {
+function buildNodeLayouts(root: ResearchNode | undefined, children: ResearchNode[], activeBranchNodes: ResearchNode[]) {
   const layouts: Record<string, NodeLayout> = {};
   if (root) {
     layouts[root.id] = ROOT_LAYOUT;
@@ -296,10 +301,13 @@ function buildNodeLayouts(root: ResearchNode | undefined, children: ResearchNode
     };
   });
 
-  selectedChildren.forEach((node, index) => {
+  const indexByDepth = new Map<number, number>();
+  activeBranchNodes.forEach((node) => {
+    const depthIndex = indexByDepth.get(node.depth) ?? 0;
+    indexByDepth.set(node.depth, depthIndex + 1);
     layouts[node.id] = {
-      x: SECOND_LAYER_X,
-      y: 54 + index * 146,
+      x: SECOND_LAYER_X + Math.max(0, node.depth - 2) * 390,
+      y: 54 + depthIndex * 146,
       width: NODE_WIDTH,
       height: NODE_HEIGHT
     };
@@ -315,18 +323,18 @@ function duplicateStartOffset(
   currentLayouts: Record<string, NodeLayout>,
   root: ResearchNode | undefined,
   children: ResearchNode[],
-  selectedChildren: ResearchNode[]
+  activeBranchNodes: ResearchNode[]
 ) {
   const sourceLayout = currentLayouts[sourceNodeId];
-  const sourceNode = children.concat(selectedChildren).find((node) => node.id === sourceNodeId);
+  const sourceNode = children.concat(activeBranchNodes).find((node) => node.id === sourceNodeId);
   if (!sourceLayout || !sourceNode || copyNodeId === sourceNodeId) {
     return { x: sourceOffset.x + 18, y: sourceOffset.y + 18 };
   }
 
   const copyNode = { ...sourceNode, id: copyNodeId, title: `${sourceNode.title} 副本` };
   const predictedChildren = insertAfter(children, sourceNodeId, copyNode);
-  const predictedSelectedChildren = insertAfter(selectedChildren, sourceNodeId, copyNode);
-  const copyLayout = buildNodeLayouts(root, predictedChildren, predictedSelectedChildren)[copyNodeId];
+  const predictedActiveBranchNodes = insertAfter(activeBranchNodes, sourceNodeId, copyNode);
+  const copyLayout = buildNodeLayouts(root, predictedChildren, predictedActiveBranchNodes)[copyNodeId];
   if (!copyLayout) {
     return { x: sourceOffset.x + 18, y: sourceOffset.y + 18 };
   }
