@@ -277,6 +277,179 @@ pub struct ResearchMap {
     pub updated_at: String,
 }
 
+// V2: the durable knowledge graph is primary. Mind maps and route analyses are
+// views over this graph instead of separate stores that must be synchronized.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KnowledgeSubjectKind {
+    Technology,
+    Document,
+    Paper,
+    Codebase,
+    Question,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KnowledgeNodeKind {
+    Subject,
+    Topic,
+    Concept,
+    Claim,
+    Evidence,
+    Question,
+    Synthesis,
+    Goal,
+    Criterion,
+    Constraint,
+    RouteOption,
+    Decision,
+    RouteStep,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KnowledgeRelationKind {
+    Contains,
+    Explains,
+    DependsOn,
+    Supports,
+    Contradicts,
+    Answers,
+    Summarizes,
+    Compares,
+    Constrains,
+    Recommends,
+    Precedes,
+    RelatedTo,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeNode {
+    pub id: String,
+    pub kind: KnowledgeNodeKind,
+    pub title: String,
+    pub summary: String,
+    pub depth: u32,
+    pub tags: Vec<String>,
+    pub source_ids: Vec<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeEdge {
+    pub id: String,
+    pub from_node_id: String,
+    pub to_node_id: String,
+    pub kind: KnowledgeRelationKind,
+    pub confidence: f32,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeGraph {
+    pub id: String,
+    pub title: String,
+    pub root_node_ids: Vec<String>,
+    pub nodes: Vec<KnowledgeNode>,
+    pub edges: Vec<KnowledgeEdge>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KnowledgeContextPolicy {
+    SelectedNode,
+    SelectedAndNeighbors,
+    WholeSubject,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentActionKind {
+    DrillDown,
+    Ask,
+    Summarize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentRequestStatus {
+    Proposed,
+    Accepted,
+    Rejected,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KnowledgeSelection {
+    pub id: String,
+    pub focus_node_id: String,
+    pub node_ids: Vec<String>,
+    pub source_ids: Vec<String>,
+    pub context_policy: KnowledgeContextPolicy,
+    pub depth: i32,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRequest {
+    pub id: String,
+    pub action: AgentActionKind,
+    pub selection_id: String,
+    pub prompt: String,
+    pub status: AgentRequestStatus,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeConversation {
+    pub id: String,
+    pub node_id: String,
+    pub question: String,
+    pub answer_node_id: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum GraphPatchOperation {
+    CreateNode { node: KnowledgeNode },
+    CreateEdge { edge: KnowledgeEdge },
+    CreateConversation { conversation: NodeConversation },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CandidateGraphPatchStatus {
+    PendingReview,
+    Accepted,
+    Rejected,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CandidateGraphPatch {
+    pub id: String,
+    pub request_id: String,
+    pub action: AgentActionKind,
+    pub target_node_id: String,
+    pub focus_node_id: String,
+    pub title: String,
+    pub summary: String,
+    pub operations: Vec<GraphPatchOperation>,
+    pub confidence: f32,
+    pub status: CandidateGraphPatchStatus,
+    pub created_at: String,
+}
+
 pub fn build_smoke_object() -> (ResearchObject, ResearchNode) {
     let now = "2026-05-09T00:00:00.000Z".to_string();
     (
@@ -355,5 +528,56 @@ mod tests {
         assert_eq!(node_json["mapId"], "map-main");
         assert_eq!(node_json["expansionState"], "expanded");
         assert_eq!(node_json["createdBy"], "agent");
+    }
+
+    #[test]
+    fn models_one_primary_knowledge_graph() {
+        let now = "2026-07-13T00:00:00.000Z".to_string();
+        let graph = KnowledgeGraph {
+            id: "graph-webassembly".to_string(),
+            title: "WebAssembly Component Model".to_string(),
+            root_node_ids: vec!["node-root".to_string()],
+            nodes: vec![KnowledgeNode {
+                id: "node-root".to_string(),
+                kind: KnowledgeNodeKind::Subject,
+                title: "WebAssembly Component Model".to_string(),
+                summary: "技术分析对象".to_string(),
+                depth: 0,
+                tags: vec!["technology".to_string()],
+                source_ids: Vec::new(),
+                created_at: now.clone(),
+                updated_at: now.clone(),
+            }],
+            edges: Vec::new(),
+            created_at: now.clone(),
+            updated_at: now,
+        };
+
+        let json = serde_json::to_value(graph).unwrap();
+        assert_eq!(json["nodes"][0]["kind"], "subject");
+        assert_eq!(json["rootNodeIds"][0], "node-root");
+    }
+
+    #[test]
+    fn serializes_candidate_graph_patch_for_human_review() {
+        let now = "2026-07-13T00:00:00.000Z".to_string();
+        let patch = CandidateGraphPatch {
+            id: "patch-1".to_string(),
+            request_id: "request-1".to_string(),
+            action: AgentActionKind::Summarize,
+            target_node_id: "node-root".to_string(),
+            focus_node_id: "node-summary".to_string(),
+            title: "总结根节点".to_string(),
+            summary: "接受后写入图谱".to_string(),
+            operations: Vec::new(),
+            confidence: 0.78,
+            status: CandidateGraphPatchStatus::PendingReview,
+            created_at: now,
+        };
+        let json = serde_json::to_value(patch).unwrap();
+
+        assert_eq!(json["action"], "summarize");
+        assert_eq!(json["status"], "pending_review");
+        assert_eq!(json["targetNodeId"], "node-root");
     }
 }

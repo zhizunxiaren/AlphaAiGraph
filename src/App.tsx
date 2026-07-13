@@ -1,7 +1,7 @@
-import { AppShell } from "./components/AppShell";
-import { useResearchWorkspace } from "./state/useResearchWorkspace";
+import { KnowledgeWorkspaceShell } from "./components/KnowledgeWorkspaceShell";
+import { useKnowledgeWorkspace } from "./state/useKnowledgeWorkspace";
 
 export default function App() {
-  const workspace = useResearchWorkspace();
-  return <AppShell workspace={workspace} />;
+  const workspace = useKnowledgeWorkspace();
+  return <KnowledgeWorkspaceShell workspace={workspace} />;
 }

@@ -3,6 +3,8 @@ node_modules/
 dist/
 .tmp/
 .playwright-mcp/
+.playwright-cli/
+output/playwright/
 target/
 target*/
 src-tauri/gen/

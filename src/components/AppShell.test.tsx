@@ -1,6 +1,11 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach } from "vitest";
-import App from "../App";
+import { useResearchWorkspace } from "../state/useResearchWorkspace";
+import { AppShell } from "./AppShell";
+
+function App() {
+  return <AppShell workspace={useResearchWorkspace()} />;
+}
 
 beforeEach(() => {
   window.localStorage.clear();

@@ -1,4 +1,8 @@
-# AlphaAiGraph 研究地图分阶段实施计划
+# AlphaAiGraph 研究地图分阶段实施计划（V1 历史归档）
+
+> **已被 V2 取代：** 当前实施计划见 `Plan-v2.md`，产品规格见
+> `docs/superpowers/specs/2026-07-13-alpha-ai-graph-knowledge-route-system.md`。
+> 本文件只保留旧模型的历史背景，不再用于安排新功能。
 
 > **给 agentic workers：** 执行本计划时必须使用 `superpowers:subagent-driven-development` 或 `superpowers:executing-plans`。按阶段推进：每个阶段先完成实现拆分，再补齐并运行该阶段的自动化验收测试。
 

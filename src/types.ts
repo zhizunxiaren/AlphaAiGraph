@@ -417,3 +417,158 @@ export interface ResearchWorkspaceSnapshot {
   knowledgeDigests: KnowledgeDigest[];
   candidates: CandidateResult[];
 }
+
+// V2 knowledge system model. The knowledge graph is the source of truth;
+// mind maps, route views and summaries are rooted views over this same graph.
+export type KnowledgeSubjectKind = "technology" | "document" | "paper" | "codebase" | "question";
+export type KnowledgeNodeKind =
+  | "subject"
+  | "topic"
+  | "concept"
+  | "claim"
+  | "evidence"
+  | "question"
+  | "synthesis"
+  | "goal"
+  | "criterion"
+  | "constraint"
+  | "route_option"
+  | "decision"
+  | "route_step";
+export type KnowledgeNodeStatus = "open" | "exploring" | "understood" | "verified" | "contested";
+export type KnowledgeRelationKind =
+  | "contains"
+  | "explains"
+  | "depends_on"
+  | "supports"
+  | "contradicts"
+  | "answers"
+  | "summarizes"
+  | "compares"
+  | "constrains"
+  | "recommends"
+  | "precedes"
+  | "related_to";
+
+export interface KnowledgeSourceRef {
+  sourceId: string;
+  locator?: string;
+  quote?: string;
+}
+
+export interface KnowledgeNode {
+  id: string;
+  kind: KnowledgeNodeKind;
+  title: string;
+  summary: string;
+  status: KnowledgeNodeStatus;
+  depth: number;
+  tags: string[];
+  sourceRefs: KnowledgeSourceRef[];
+  createdBy: ActorKind;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KnowledgeEdge {
+  id: string;
+  fromNodeId: string;
+  toNodeId: string;
+  kind: KnowledgeRelationKind;
+  label?: string;
+  confidence: number;
+  createdAt: string;
+}
+
+export interface KnowledgeGraph {
+  id: string;
+  title: string;
+  rootNodeIds: string[];
+  nodes: KnowledgeNode[];
+  edges: KnowledgeEdge[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnalysisSubject {
+  id: string;
+  kind: KnowledgeSubjectKind;
+  title: string;
+  description: string;
+  rootNodeId: string;
+  sourceAssetIds: string[];
+  createdAt: string;
+}
+
+export interface KnowledgeView {
+  id: string;
+  kind: "mind_map" | "network" | "route";
+  title: string;
+  rootNodeId: string;
+  focusNodeId: string;
+  visibleDepth: number;
+}
+
+export interface NodeConversation {
+  id: string;
+  nodeId: string;
+  question: string;
+  answerNodeId: string;
+  createdAt: string;
+}
+
+export type KnowledgeContextPolicy = "selected_node" | "selected_and_neighbors" | "whole_subject";
+
+export interface KnowledgeSelection {
+  id: string;
+  focusNodeId: string;
+  nodeIds: string[];
+  sourceIds: string[];
+  contextPolicy: KnowledgeContextPolicy;
+  depth: number;
+  updatedAt: string;
+}
+
+export type AgentActionKind = "drill_down" | "ask" | "summarize";
+export type AgentRequestStatus = "proposed" | "accepted" | "rejected";
+
+export interface AgentRequest {
+  id: string;
+  action: AgentActionKind;
+  selectionId: string;
+  prompt: string;
+  status: AgentRequestStatus;
+  createdAt: string;
+}
+
+export type GraphPatchOperation =
+  | { kind: "create_node"; node: KnowledgeNode }
+  | { kind: "create_edge"; edge: KnowledgeEdge }
+  | { kind: "create_conversation"; conversation: NodeConversation };
+
+export interface CandidateGraphPatch {
+  id: string;
+  requestId: string;
+  action: AgentActionKind;
+  targetNodeId: string;
+  focusNodeId: string;
+  title: string;
+  summary: string;
+  operations: GraphPatchOperation[];
+  confidence: number;
+  status: "pending_review" | "accepted" | "rejected";
+  createdAt: string;
+}
+
+export interface KnowledgeWorkspaceSnapshot {
+  subject: AnalysisSubject;
+  graph: KnowledgeGraph;
+  views: KnowledgeView[];
+  activeViewId: string;
+  selectedNodeId: string;
+  selection: KnowledgeSelection;
+  agentRequests: AgentRequest[];
+  candidatePatches: CandidateGraphPatch[];
+  conversations: NodeConversation[];
+  sourceAssets: SourceAsset[];
+}
