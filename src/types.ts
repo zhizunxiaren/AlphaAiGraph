@@ -418,24 +418,71 @@ export interface ResearchWorkspaceSnapshot {
   candidates: CandidateResult[];
 }
 
-// V2 knowledge system model. The knowledge graph is the source of truth;
-// mind maps, route views and summaries are rooted views over this same graph.
-export type KnowledgeSubjectKind = "technology" | "document" | "paper" | "codebase" | "question";
+// V2 knowledge system model. ProjectMode captures the user's intent while
+// SubjectKind captures what the project is about. They are deliberately
+// independent so a document, codebase, or topic can be understood,
+// systematized, or researched without changing the knowledge model.
+export type ProjectMode = "understand" | "systematize" | "research";
+export type SubjectKind = "technology" | "document" | "paper" | "codebase" | "industry" | "topic" | "question";
+/** @deprecated Use SubjectKind. Kept only for V2 stage-0 compatibility. */
+export type KnowledgeSubjectKind = SubjectKind;
+export type ProjectStatus = "draft" | "active" | "completed" | "reopened" | "archived";
+export type ProjectWorkflowState =
+  | { mode: "understand"; phase: "setup" | "mapping" | "exploring" | "reviewing" | "completed" }
+  | { mode: "systematize"; phase: "inventory" | "structuring" | "validating" | "converging" | "completed" }
+  | { mode: "research"; phase: "brief" | "planning" | "researching" | "verifying" | "synthesizing" | "completed" };
 export type KnowledgeNodeKind =
   | "subject"
   | "topic"
   | "concept"
+  | "fact"
   | "claim"
   | "evidence"
   | "question"
+  | "hypothesis"
+  | "inference"
   | "synthesis"
+  | "conclusion"
+  | "uncertainty"
+  | "skill"
+  | "practice"
+  | "experience"
   | "goal"
   | "criterion"
   | "constraint"
   | "route_option"
   | "decision"
   | "route_step";
-export type KnowledgeNodeStatus = "open" | "exploring" | "understood" | "verified" | "contested";
+export type KnowledgeNodeStatus = "open" | "exploring" | "understood" | "verified" | "contested" | "archived";
+export type EpistemicStatus =
+  | "user_asserted"
+  | "unverified"
+  | "supported"
+  | "contested"
+  | "contradicted"
+  | "outdated"
+  | "context_dependent"
+  | "superseded";
+export type KnowledgeScopeKind = "universal" | "project" | "context_specific";
+export interface KnowledgeScope {
+  kind: KnowledgeScopeKind;
+  description: string;
+  contextIds: string[];
+}
+export type TemporalValidityStatus = "unknown" | "timeless" | "current" | "time_bound" | "expired";
+export interface KnowledgeTemporalValidity {
+  status: TemporalValidityStatus;
+  observedAt?: string;
+  validFrom?: string;
+  validUntil?: string;
+}
+export type KnowledgeSourceStatus =
+  | "not_applicable"
+  | "unlinked"
+  | "linked"
+  | "verified"
+  | "stale"
+  | "conflicted";
 export type KnowledgeRelationKind =
   | "contains"
   | "explains"
@@ -448,10 +495,142 @@ export type KnowledgeRelationKind =
   | "constrains"
   | "recommends"
   | "precedes"
+  | "refines"
+  | "corrects"
+  | "supersedes"
+  | "valid_in_context"
+  | "derived_from"
   | "related_to";
+
+export type KnowledgeSourceFormat = "markdown" | "text" | "pdf";
+
+/** What kind of existing user knowledge an immutable source represents. */
+export type KnowledgeInventoryItemKind = "note" | "document" | "bookmark_index" | "experience";
+
+export type SourceLocator =
+  | { kind: "text"; lineStart: number; lineEnd?: number; section?: string }
+  | { kind: "pdf"; page: number; section?: string; boundingBox?: [number, number, number, number] }
+  | { kind: "uri"; uri: string; fragment?: string };
+
+export interface SourceAnchor {
+  id: string;
+  sourceId: string;
+  locator: SourceLocator;
+  quote?: string;
+  contentHash?: string;
+}
+
+export interface KnowledgeSourceAsset {
+  /** Version-specific immutable id; SourceAnchor.sourceId references this id. */
+  id: string;
+  /** Stable identity shared by every version of the same logical source. */
+  logicalSourceId: string;
+  version: number;
+  previousVersionId?: string;
+  spaceId: string;
+  /** Missing only on documents persisted before KnowledgeInventory existed. */
+  inventoryKind?: KnowledgeInventoryItemKind;
+  format: KnowledgeSourceFormat;
+  title: string;
+  uri: string;
+  mediaType?: string;
+  /** Present when a Research search classified the captured source. */
+  researchSourceKind?: SearchSourceKind;
+  contentHash: string;
+  byteLength: number;
+  immutable: true;
+  createdAt: string;
+}
+
+export interface IngestRequest {
+  id: string;
+  projectId: string;
+  spaceId: string;
+  /** Stable logical source id; ingest creates a version-specific asset id. */
+  sourceId: string;
+  /** Defaults to document for backwards-compatible callers. */
+  inventoryKind?: KnowledgeInventoryItemKind;
+  title: string;
+  uri: string;
+  format: KnowledgeSourceFormat;
+  mediaType?: string;
+  researchSourceKind?: SearchSourceKind;
+  requestedAt: string;
+}
+
+export interface ParsedSourceSection {
+  id: string;
+  title?: string;
+  text: string;
+  anchor: SourceAnchor;
+}
+
+export interface SourceParserInput {
+  sourceId: string;
+  title: string;
+  uri: string;
+  format: KnowledgeSourceFormat;
+  mediaType?: string;
+  content: string | Uint8Array;
+}
+
+export interface SourceParserOutput {
+  parserId: string;
+  sections: ParsedSourceSection[];
+  warnings: string[];
+  metadata: Record<string, string | number | boolean>;
+}
+
+export interface SourceParser {
+  id: string;
+  supportedFormats: readonly KnowledgeSourceFormat[];
+  parse(input: SourceParserInput): Promise<SourceParserOutput>;
+}
+
+export interface IngestResult {
+  requestId: string;
+  status: "parsed" | "failed" | "unsupported";
+  source?: KnowledgeSourceAsset;
+  sections: ParsedSourceSection[];
+  parserId?: string;
+  warnings: string[];
+  error?: string;
+}
+
+export type KnowledgeInventoryReviewState = "unmapped" | "pending_review" | "mapped";
+
+/**
+ * A rebuildable projection over immutable sources and their graph references.
+ * It is deliberately not persisted as a second knowledge model.
+ */
+export interface KnowledgeInventoryItem {
+  logicalSourceId: string;
+  latestSourceId: string;
+  kind: KnowledgeInventoryItemKind;
+  title: string;
+  uri: string;
+  format: KnowledgeSourceFormat;
+  versionCount: number;
+  latestVersion: number;
+  importedAt: string;
+  reviewState: KnowledgeInventoryReviewState;
+  linkedNodeIds: string[];
+  pendingNodeIds: string[];
+  anchorCount: number;
+}
+
+export interface KnowledgeInventory {
+  projectId: string;
+  items: KnowledgeInventoryItem[];
+  counts: Record<KnowledgeInventoryItemKind, number>;
+  mappedItemCount: number;
+  pendingReviewItemCount: number;
+  unmappedItemCount: number;
+}
 
 export interface KnowledgeSourceRef {
   sourceId: string;
+  anchorId?: string;
   locator?: string;
   quote?: string;
 }
@@ -461,13 +640,24 @@ export interface KnowledgeNode {
   kind: KnowledgeNodeKind;
   title: string;
   summary: string;
+  /** Workflow/progress status; epistemicStatus separately records what is believed. */
   status: KnowledgeNodeStatus;
+  epistemicStatus: EpistemicStatus;
+  scope: KnowledgeScope;
+  temporalValidity: KnowledgeTemporalValidity;
+  sourceStatus: KnowledgeSourceStatus;
+  /** Optional epistemic confidence; trustworthy Research conclusions require it. */
+  confidence?: number;
   depth: number;
   tags: string[];
   sourceRefs: KnowledgeSourceRef[];
   createdBy: ActorKind;
+  creatorId: string;
   createdAt: string;
   updatedAt: string;
+  archivedAt?: string;
+  archivedBy?: ActorKind;
+  archiveReason?: string;
 }
 
 export interface KnowledgeEdge {
@@ -476,6 +666,9 @@ export interface KnowledgeEdge {
   toNodeId: string;
   kind: KnowledgeRelationKind;
   label?: string;
+  /** Required by governance for cognitive-evolution relations. */
+  rationale?: string;
+  createdBy?: ActorKind;
   confidence: number;
   createdAt: string;
 }
@@ -490,9 +683,286 @@ export interface KnowledgeGraph {
   updatedAt: string;
 }
 
+export interface KnowledgeSpace {
+  id: string;
+  title: string;
+  graphId: string;
+  projectIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectSubject {
+  id: string;
+  kind: SubjectKind;
+  title: string;
+  description: string;
+  rootNodeId: string;
+  sourceAssetIds: string[];
+}
+
+export interface Project {
+  id: string;
+  spaceId: string;
+  graphId: string;
+  mode: ProjectMode;
+  title: string;
+  goal: string;
+  subject: ProjectSubject;
+  status: ProjectStatus;
+  workflow: ProjectWorkflowState;
+  completionCriteria: string[];
+  parentProjectId?: string;
+  derivedFromNodeId?: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+// Research orchestration coordinates work around the primary KnowledgeGraph.
+// It only stores goals, execution state, and references; research knowledge
+// itself must remain in KnowledgeNode/KnowledgeEdge and immutable sources.
+export type ResearchBriefStatus = "draft" | "ready" | "superseded";
+export type ResearchPlanStatus = "draft" | "active" | "completed" | "cancelled" | "superseded";
+export type ResearchTaskKind = "parse" | "search" | "extract" | "analyze" | "challenge" | "verify" | "synthesize";
+export type ResearchTaskStatus = "queued" | "in_progress" | "blocked" | "completed" | "cancelled";
+export type ResearchAgentRole = "planner" | "researcher" | "analyst" | "critic" | "verifier" | "synthesizer";
+export type ResearchRoundStatus = "planned" | "active" | "completed" | "cancelled";
+export type ResearchRoundOutcome = "advanced" | "insufficient_evidence" | "no_material_progress";
+export type SearchQueryPurpose =
+  | "primary_source"
+  | "supporting_evidence"
+  | "counterevidence"
+  | "update_check"
+  | "gap_closure"
+  | "alternative_explanation";
+export type SearchQueryStatus = "draft" | "queued" | "running" | "completed" | "failed" | "cancelled";
+export type SearchSourceKind = "primary" | "official" | "peer_reviewed" | "independent_secondary" | "community" | "other";
+export type VerificationCheckKind =
+  | "independent_sources"
+  | "primary_source_traceability"
+  | "temporal_validity"
+  | "geography_consistency"
+  | "unit_consistency"
+  | "methodology_consistency"
+  | "conflict_of_interest"
+  | "support_and_opposition"
+  | "inference_scope"
+  | "alternative_explanation";
+export type VerificationStatus = "pending" | "passed" | "failed" | "inconclusive" | "not_applicable";
+export type ConflictOfInterestStatus = "none_declared" | "declared" | "unknown";
+
+export interface ResearchTimeScope {
+  from?: string;
+  to?: string;
+  asOf?: string;
+}
+
+export interface ResearchScope {
+  description: string;
+  time: ResearchTimeScope;
+  geographies: string[];
+  units: string[];
+  inclusionCriteria: string[];
+  exclusionCriteria: string[];
+}
+
+export interface ResearchBrief {
+  id: string;
+  projectId: string;
+  primaryQuestionNodeId: string;
+  secondaryQuestionNodeIds: string[];
+  objective: string;
+  scope: ResearchScope;
+  successCriteria: string[];
+  seedSourceIds: string[];
+  status: ResearchBriefStatus;
+  revision: number;
+  createdBy: ActorKind;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ResearchPlan {
+  id: string;
+  projectId: string;
+  briefId: string;
+  strategy: string;
+  taskIds: string[];
+  verificationRequirements: VerificationCheckKind[];
+  maxRounds?: number;
+  status: ResearchPlanStatus;
+  revision: number;
+  createdBy: ActorKind;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+}
+
+export interface ResearchTask {
+  id: string;
+  projectId: string;
+  planId: string;
+  roundId?: string;
+  kind: ResearchTaskKind;
+  title: string;
+  objective: string;
+  role: ResearchAgentRole;
+  status: ResearchTaskStatus;
+  dependsOnTaskIds: string[];
+  inputNodeIds: string[];
+  inputSourceIds: string[];
+  outputNodeIds: string[];
+  outputSourceIds: string[];
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  blockedReason?: string;
+}
+
+export interface ResearchRoundOutputs {
+  sourceIds: string[];
+  factNodeIds: string[];
+  claimNodeIds: string[];
+  hypothesisNodeIds: string[];
+  inferenceNodeIds: string[];
+  evidenceNodeIds: string[];
+  conflictNodeIds: string[];
+  gapNodeIds: string[];
+  synthesisNodeIds: string[];
+  edgeIds: string[];
+  verificationRecordIds: string[];
+}
+
+export interface ResearchRoundBaseline {
+  capturedAt: string;
+  graphUpdatedAt: string;
+  nodeIds: string[];
+  edgeIds: string[];
+  sourceIds: string[];
+  verificationRecordIds: string[];
+}
+
+export interface ResearchInsufficientEvidenceResult {
+  kind: "insufficient_evidence";
+  targetNodeIds: string[];
+  blockingVerificationRecordIds: string[];
+  failedCheckKinds: VerificationCheckKind[];
+  inconclusiveCheckKinds: VerificationCheckKind[];
+  sourceIds: string[];
+  evidenceNodeIds: string[];
+  opposingEvidenceNodeIds: string[];
+  gapNodeIds: string[];
+  summary: string;
+  assessedBy: "system";
+  assessedAt: string;
+}
+
+export interface ResearchReliableConclusionResult {
+  kind: "reliable_conclusion";
+  acceptedPatchId: string;
+  verificationTargetNodeId: string;
+  verificationRecordIds: string[];
+  factNodeIds: string[];
+  inferenceNodeIds: string[];
+  synthesisNodeId: string;
+  conclusionNodeId: string;
+  unresolvedQuestionNodeIds: string[];
+  confidence: number;
+  scope: KnowledgeScope;
+  acceptedAt: string;
+}
+
+export type ResearchRoundResult = ResearchInsufficientEvidenceResult | ResearchReliableConclusionResult;
+
+export interface ResearchRound {
+  id: string;
+  projectId: string;
+  planId: string;
+  roundNumber: number;
+  objective: string;
+  taskIds: string[];
+  status: ResearchRoundStatus;
+  baseline: ResearchRoundBaseline;
+  outcome?: ResearchRoundOutcome;
+  result?: ResearchRoundResult;
+  outputs: ResearchRoundOutputs;
+  nextQuestionNodeIds: string[];
+  startedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SearchQueryFilters {
+  domains: string[];
+  languages: string[];
+  sourceKinds: SearchSourceKind[];
+  publishedFrom?: string;
+  publishedTo?: string;
+}
+
+export interface SearchQuery {
+  id: string;
+  projectId: string;
+  planId: string;
+  taskId: string;
+  roundId: string;
+  query: string;
+  purpose: SearchQueryPurpose;
+  filters: SearchQueryFilters;
+  status: SearchQueryStatus;
+  resultSourceIds: string[];
+  deduplicatedSourceIds: string[];
+  createdAt: string;
+  updatedAt: string;
+  executedAt?: string;
+  completedAt?: string;
+  error?: string;
+}
+
+export interface VerificationRecord {
+  id: string;
+  projectId: string;
+  planId: string;
+  roundId: string;
+  taskId?: string;
+  targetNodeId: string;
+  checkKind: VerificationCheckKind;
+  status: VerificationStatus;
+  sourceIds: string[];
+  evidenceNodeIds: string[];
+  opposingEvidenceNodeIds: string[];
+  evidenceProfiles: VerificationEvidenceProfile[];
+  alternativeExplanationNodeIds: string[];
+  finding?: string;
+  checkedBy: ActorKind;
+  checkedAt?: string;
+  createdAt: string;
+}
+
+export interface VerificationEvidenceProfile {
+  evidenceNodeId: string;
+  geographies: string[];
+  unit?: string;
+  methodology?: string;
+  conflictOfInterestStatus: ConflictOfInterestStatus;
+  conflictOfInterestDisclosure?: string;
+}
+
+export interface ResearchOrchestration {
+  briefs: ResearchBrief[];
+  plans: ResearchPlan[];
+  tasks: ResearchTask[];
+  rounds: ResearchRound[];
+  searchQueries: SearchQuery[];
+  verificationRecords: VerificationRecord[];
+}
+
+/** @deprecated Use ProjectSubject through Project. */
 export interface AnalysisSubject {
   id: string;
-  kind: KnowledgeSubjectKind;
+  kind: SubjectKind;
   title: string;
   description: string;
   rootNodeId: string;
@@ -500,9 +970,20 @@ export interface AnalysisSubject {
   createdAt: string;
 }
 
+export type KnowledgeViewKind =
+  | "mind_map"
+  | "network"
+  | "evidence"
+  | "route"
+  | "knowledge_modules"
+  | "skill_tree"
+  | "learning_dependencies"
+  | "learning_path"
+  | "practice_manual";
+
 export interface KnowledgeView {
   id: string;
-  kind: "mind_map" | "network" | "route";
+  kind: KnowledgeViewKind;
   title: string;
   rootNodeId: string;
   focusNodeId: string;
@@ -529,8 +1010,8 @@ export interface KnowledgeSelection {
   updatedAt: string;
 }
 
-export type AgentActionKind = "drill_down" | "ask" | "summarize";
-export type AgentRequestStatus = "proposed" | "accepted" | "rejected";
+export type AgentActionKind = "drill_down" | "ask" | "summarize" | "interview" | "explore" | "correct" | "conclude" | "route" | "route_scenario" | "reuse" | "revise" | "link" | "status" | "source" | "archive";
+export type AgentRequestStatus = "proposed" | "running" | "accepted" | "rejected" | "failed";
 
 export interface AgentRequest {
   id: string;
@@ -541,10 +1022,111 @@ export interface AgentRequest {
   createdAt: string;
 }
 
+export interface GraphPatchOperationAudit {
+  id: string;
+  rationale: string;
+  actor: ActorKind;
+  createdAt: string;
+}
+
+export interface KnowledgeNodeStatusSnapshot {
+  status: KnowledgeNodeStatus;
+  epistemicStatus: EpistemicStatus;
+  temporalValidity: KnowledgeTemporalValidity;
+}
+
+export interface KnowledgeNodeSourceSnapshot {
+  sourceRefs: KnowledgeSourceRef[];
+  sourceStatus: KnowledgeSourceStatus;
+}
+
+export interface KnowledgeNodeArchiveSnapshot {
+  status: KnowledgeNodeStatus;
+  archivedAt?: string;
+  archivedBy?: ActorKind;
+  archiveReason?: string;
+}
+
 export type GraphPatchOperation =
-  | { kind: "create_node"; node: KnowledgeNode }
-  | { kind: "create_edge"; edge: KnowledgeEdge }
-  | { kind: "create_conversation"; conversation: NodeConversation };
+  | { kind: "create_node"; node: KnowledgeNode; audit: GraphPatchOperationAudit }
+  | { kind: "create_edge"; edge: KnowledgeEdge; audit: GraphPatchOperationAudit }
+  | { kind: "create_conversation"; conversation: NodeConversation; audit: GraphPatchOperationAudit }
+  | { kind: "revise_node"; nodeId: string; before: KnowledgeNode; after: KnowledgeNode; audit: GraphPatchOperationAudit }
+  | { kind: "link_nodes"; before: KnowledgeEdge | null; after: KnowledgeEdge; audit: GraphPatchOperationAudit }
+  | { kind: "update_node_status"; nodeId: string; before: KnowledgeNodeStatusSnapshot; after: KnowledgeNodeStatusSnapshot; audit: GraphPatchOperationAudit }
+  | { kind: "update_node_sources"; nodeId: string; before: KnowledgeNodeSourceSnapshot; after: KnowledgeNodeSourceSnapshot; audit: GraphPatchOperationAudit }
+  | { kind: "archive_node"; nodeId: string; before: KnowledgeNodeArchiveSnapshot; after: KnowledgeNodeArchiveSnapshot; audit: GraphPatchOperationAudit };
+
+export type ImpactCategory = "judgment" | "method" | "summary" | "conclusion";
+
+export interface ImpactPathSegment {
+  edgeId: string;
+  relationKind: KnowledgeRelationKind;
+  fromNodeId: string;
+  toNodeId: string;
+}
+
+export interface ImpactAssessmentItem {
+  nodeId: string;
+  title: string;
+  nodeKind: KnowledgeNodeKind;
+  category: ImpactCategory;
+  distance: number;
+  path: ImpactPathSegment[];
+  reason: string;
+}
+
+export interface ImpactAssessment {
+  id: string;
+  patchId: string;
+  targetNodeId: string;
+  graphUpdatedAt: string;
+  assessedAt: string;
+  counts: Record<ImpactCategory, number>;
+  affectedItems: ImpactAssessmentItem[];
+  hasDownstreamImpact: boolean;
+}
+
+export type ImpactReviewTaskStatus = "pending_review" | "accepted" | "modified" | "rejected";
+export type ImpactReviewHistoryAction =
+  | "created"
+  | "accepted"
+  | "modification_proposed"
+  | "modified"
+  | "modification_rejected"
+  | "rejected";
+
+export interface ImpactReviewRevisionSnapshot {
+  title: string;
+  summary: string;
+}
+
+export interface ImpactReviewHistoryEntry {
+  id: string;
+  action: ImpactReviewHistoryAction;
+  actor: ActorKind;
+  at: string;
+  note: string;
+  patchId?: string;
+  before?: ImpactReviewRevisionSnapshot;
+  after?: ImpactReviewRevisionSnapshot;
+}
+
+export interface ImpactReviewTask {
+  id: string;
+  sourceCorrectionPatchId: string;
+  impactAssessmentId: string;
+  correctionTargetNodeId: string;
+  correctedNodeId: string;
+  nodeId: string;
+  category: ImpactCategory;
+  reason: string;
+  impactPath: ImpactPathSegment[];
+  status: ImpactReviewTaskStatus;
+  createdAt: string;
+  updatedAt: string;
+  history: ImpactReviewHistoryEntry[];
+}
 
 export interface CandidateGraphPatch {
   id: string;
@@ -554,21 +1136,193 @@ export interface CandidateGraphPatch {
   focusNodeId: string;
   title: string;
   summary: string;
+  revision: number;
+  createdBy: ActorKind;
   operations: GraphPatchOperation[];
   confidence: number;
   status: "pending_review" | "accepted" | "rejected";
   createdAt: string;
+  impactAssessment?: ImpactAssessment;
+  reviewTaskId?: string;
+  reviewedBy?: ActorKind;
+  reviewedAt?: string;
+}
+
+export type KnowledgeAgentSchemaVersion = "1.0";
+export type GraphPatchOperationKind = GraphPatchOperation["kind"];
+
+export interface KnowledgeAgentSourceContext {
+  source: KnowledgeSourceAsset;
+  anchors: SourceAnchor[];
+}
+
+export interface KnowledgeAgentOutputConstraints {
+  allowedOperationKinds: GraphPatchOperationKind[];
+  maxOperations: number;
+  requireSourceAnchors: boolean;
+}
+
+/** Provider-neutral, serializable input. KnowledgeSelection is the visible Context Packet. */
+export interface KnowledgeAgentInput {
+  schemaVersion: KnowledgeAgentSchemaVersion;
+  request: AgentRequest;
+  project: Project;
+  selection: KnowledgeSelection;
+  currentNode: KnowledgeNode;
+  neighborNodes: KnowledgeNode[];
+  sources: KnowledgeAgentSourceContext[];
+  unresolvedQuestions: KnowledgeNode[];
+  constraints: KnowledgeAgentOutputConstraints;
+}
+
+/** The only accepted provider output is a reviewable CandidateGraphPatch envelope. */
+export interface KnowledgeAgentOutput {
+  schemaVersion: KnowledgeAgentSchemaVersion;
+  requestId: string;
+  patch: CandidateGraphPatch;
+}
+
+export interface KnowledgeAgentInvocationOptions {
+  signal?: AbortSignal;
+}
+
+export interface AgentTokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  cachedInputTokens?: number;
+}
+
+export interface KnowledgeAgentProviderMetadata {
+  providerRequestId?: string;
+  model?: string;
+  usage?: AgentTokenUsage;
+}
+
+export interface KnowledgeAgentProviderResponse {
+  output: unknown;
+  metadata?: KnowledgeAgentProviderMetadata;
+}
+
+export interface KnowledgeAgentInvocationResult {
+  output: KnowledgeAgentOutput;
+  metadata: KnowledgeAgentProviderMetadata;
+}
+
+export interface KnowledgeAgentProvider {
+  readonly id: string;
+  invoke(input: KnowledgeAgentInput, options?: KnowledgeAgentInvocationOptions): Promise<KnowledgeAgentProviderResponse>;
+}
+
+export interface AgentModelPricing {
+  currency: "USD";
+  inputPerMillionTokens: number;
+  outputPerMillionTokens: number;
+  cachedInputPerMillionTokens?: number;
+  source: string;
+  effectiveAt: string;
+}
+
+export interface AgentCostEstimate {
+  currency: "USD";
+  inputCost: number;
+  outputCost: number;
+  cachedInputCost: number;
+  totalCost: number;
+  pricingSource: string;
+  pricingEffectiveAt: string;
+}
+
+export type AgentRunAttemptStatus = "succeeded" | "failed" | "timed_out" | "cancelled";
+export type AgentRunStatus = "succeeded" | "failed" | "timed_out" | "cancelled";
+
+export interface AgentRunError {
+  code: string;
+  message: string;
+  retryable: boolean;
+}
+
+export interface AgentRunAttempt {
+  attempt: number;
+  status: AgentRunAttemptStatus;
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  providerRequestId?: string;
+  usage?: AgentTokenUsage;
+  error?: AgentRunError;
+}
+
+export interface AgentRunEvent {
+  sequence: number;
+  at: string;
+  kind: "run_started" | "attempt_started" | "attempt_succeeded" | "attempt_failed" | "retry_scheduled" | "run_completed";
+  message: string;
+}
+
+export interface AgentRun {
+  id: string;
+  requestId: string;
+  providerId: string;
+  model?: string;
+  schemaVersion: KnowledgeAgentSchemaVersion;
+  status: AgentRunStatus;
+  maxAttempts: number;
+  attemptCount: number;
+  startedAt: string;
+  completedAt: string;
+  durationMs: number;
+  patchId?: string;
+  usage?: AgentTokenUsage;
+  cost?: AgentCostEstimate;
+  error?: AgentRunError;
+  attempts: AgentRunAttempt[];
+  events: AgentRunEvent[];
+}
+
+export interface AgentRuntimeConfig {
+  timeoutMs: number;
+  maxAttempts: number;
+  retryDelayMs: number;
+  pricing?: AgentModelPricing;
+  signal?: AbortSignal;
 }
 
 export interface KnowledgeWorkspaceSnapshot {
-  subject: AnalysisSubject;
+  space: KnowledgeSpace;
+  project: Project;
+  projects: Project[];
+  /** @deprecated Use project.subject. This aliases the same in-memory object. */
+  subject: ProjectSubject;
   graph: KnowledgeGraph;
   views: KnowledgeView[];
   activeViewId: string;
   selectedNodeId: string;
   selection: KnowledgeSelection;
   agentRequests: AgentRequest[];
+  agentRuns: AgentRun[];
   candidatePatches: CandidateGraphPatch[];
+  impactReviewTasks: ImpactReviewTask[];
+  researchOrchestration: ResearchOrchestration;
   conversations: NodeConversation[];
+  /** V2 immutable source registry; legacy sourceAssets remains migration-only. */
+  knowledgeSourceAssets: KnowledgeSourceAsset[];
+  sourceAnchors: SourceAnchor[];
   sourceAssets: SourceAsset[];
+}
+
+export const knowledgeWorkspaceSchemaVersion = 2 as const;
+export type KnowledgeWorkspaceSchemaVersion = typeof knowledgeWorkspaceSchemaVersion;
+
+/** Durable, provider-neutral persistence envelope for one complete knowledge space. */
+export interface KnowledgeWorkspaceDocument {
+  schemaVersion: KnowledgeWorkspaceSchemaVersion;
+  savedAt: string;
+  workspace: KnowledgeWorkspaceSnapshot;
+}
+
+/** Storage only owns opaque JSON. Migration and domain validation stay above adapters. */
+export interface KnowledgeWorkspaceStore {
+  save(spaceId: string, serializedDocument: string): Promise<void>;
+  load(spaceId: string): Promise<string | null>;
 }

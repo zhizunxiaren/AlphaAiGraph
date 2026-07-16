@@ -1,5 +1,7 @@
 # AlphaAiGraph 研究驾驶舱 UX 设计
 
+> 历史状态：V1 Research Cockpit 设计归档，不是当前工作台规范。旧 Cockpit 代码已在迁移完成并经用户确认后移除；当前产品方向见 `2026-07-13-alpha-ai-graph-product-philosophy.md`，当前开发者入口见 `../../DEVELOPMENT.md`。本文继续保留作为历史和搜索 benchmark 语料。
+
 日期：2026-05-11
 
 ## 意图

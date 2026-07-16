@@ -1,5 +1,9 @@
 # AlphaAiGraph 知识路线系统重构规格
 
+> 状态：阶段 0 已完成的架构基线
+>
+> 说明：本文继续定义单一 `KnowledgeGraph`、渐进下钻、Context Packet 和 Candidate Graph Patch 等已验收基础能力。顶层 `AnalysisSubject`、按资料类型启动和所有对象固定拥有技术路线视图属于过渡设计；后续产品模型与实施顺序以 `2026-07-13-alpha-ai-graph-product-philosophy.md`、`2026-07-14-alpha-ai-graph-project-model-alignment.md` 和根目录 `Plan-v2.md` 为准。
+
 日期：2026-07-13
 
 ## 意图
@@ -24,7 +28,7 @@ V2 采用相反的不变量：
 - 第一版先使用确定性本地 Agent 证明交互闭环，真实模型调用、持久化和多人协作后接。
 - 原始资料不可变；Agent 只能创建知识节点、关系和来源锚点，不能改写原始资料。
 - Agent 生成内容必须保留 `createdBy`、来源和置信度；没有来源的内容只能是问题、假设或待验证综合。
-- 旧 `ResearchMap` 模块作为迁移兼容层暂时保留，但不再是应用入口或新能力承载点。
+- 旧 `ResearchMap` 浏览器模块曾作为迁移兼容层保留，现已在受控迁移入口完成并经用户确认后移除；V1 snapshot 类型、显式导入器和少量 Rust 公共 API 仍只承担兼容责任。
 
 ## 第一性原理模型
 
@@ -122,8 +126,23 @@ KnowledgeSelection
 
 AgentRequest
   -> KnowledgeSelection
+  -> KnowledgeAgentInput v1
+       -> Project goal / current node / direct neighbors
+       -> versioned sources + anchors / unresolved questions
+       -> visible KnowledgeSelection / allowed operations
+  -> KnowledgeAgentProvider (provider-neutral, immutable input)
+       -> DeepSeek adapter / GLM adapter
+       -> shared OpenAI-compatible chat-completions transport
+       -> API key only in trusted runtime; browser direct calls rejected
+  -> AgentRuntime
+       -> per-attempt timeout / cancellation / retry policy
+       -> AgentRun events + normalized token usage
+       -> optional cost estimate from dated, sourced pricing
+  -> KnowledgeAgentOutput v1 (strict CandidateGraphPatch envelope only)
   -> CandidateGraphPatch
        -> create_node / create_edge / create_conversation
+       -> revise_node / link_nodes / update_node_status / update_node_sources / archive_node
+       -> patch revision + operation audit + mutable operation before/after
        -> pending_review | accepted | rejected
 ```
 

@@ -1,5 +1,7 @@
 # AlphaAiGraph UI 设计文档
 
+> 历史状态：V1 Research Cockpit UI 归档，不是当前 UI 实现依据。当前工作台以 Understand、Systematize、Research 三种 Project 意图和单一 Knowledge Graph 为中心；产品方向见 `2026-07-13-alpha-ai-graph-product-philosophy.md`，开发者入口见 `../../DEVELOPMENT.md`。本文继续保留作为历史和搜索 benchmark 语料。
+
 日期：2026-05-13
 
 ## 设计目标

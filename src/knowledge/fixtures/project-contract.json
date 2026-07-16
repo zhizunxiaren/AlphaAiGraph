@@ -1,0 +1,26 @@
+{
+  "id": "project-understand-rust-async-runtime",
+  "spaceId": "space-main",
+  "graphId": "graph-rust-async-runtime",
+  "mode": "understand",
+  "title": "Rust async runtime",
+  "goal": "理解「Rust async runtime」的核心概念、关系和边界。",
+  "subject": {
+    "id": "subject-rust-async-runtime",
+    "kind": "technology",
+    "title": "Rust async runtime",
+    "description": "围绕用户目标渐进建立可持续演化的知识网络。",
+    "rootNodeId": "knowledge-rust-async-runtime",
+    "sourceAssetIds": []
+  },
+  "status": "active",
+  "workflow": {
+    "mode": "understand",
+    "phase": "mapping"
+  },
+  "completionCriteria": [
+    "用户确认已理解到所需深度"
+  ],
+  "createdAt": "2026-07-14T00:00:00.000Z",
+  "updatedAt": "2026-07-14T00:00:00.000Z"
+}

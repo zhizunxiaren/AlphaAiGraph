@@ -1,5 +1,7 @@
 # AlphaAiGraph AI Agent Research Map Product Direction
 
+> 历史状态：V1 产品方向归档，不是当前实现依据。当前唯一产品方向见 `2026-07-13-alpha-ai-graph-product-philosophy.md`，当前工程 contract 见 `2026-07-14-alpha-ai-graph-project-model-alignment.md`。本文继续保留作为迁移审计和搜索 benchmark 语料。
+
 Date: 2026-05-09
 
 ## Positioning

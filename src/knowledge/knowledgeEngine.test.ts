@@ -3,18 +3,69 @@ import {
   acceptCandidateGraphPatch,
   buildKnowledgeSelection,
   createKnowledgeWorkspace,
+  createProjectWorkspace,
+  createResearchRouteWorkspace,
+  deriveProjectFromNode,
   proposeKnowledgeAnswer,
   proposeKnowledgeDrillDown,
   proposeKnowledgeSummary,
   rejectCandidateGraphPatch
 } from "./knowledgeEngine";
 
-test("uses one knowledge graph as the source for mind map, network and route views", () => {
+test("uses one knowledge graph without forcing a route into an Understand Project", () => {
   const workspace = createKnowledgeWorkspace("Rust async runtime");
 
-  expect(workspace.views.map((view) => view.kind)).toEqual(["mind_map", "network", "route"]);
+  expect(workspace.project.mode).toBe("understand");
+  expect(workspace.subject).toBe(workspace.project.subject);
+  expect(workspace.views.map((view) => view.kind)).toEqual(["mind_map", "network"]);
   expect(workspace.views.every((view) => workspace.graph.nodes.some((node) => node.id === view.rootNodeId))).toBe(true);
-  expect(workspace.graph.nodes.some((node) => node.kind === "decision" && node.title === "技术路线")).toBe(true);
+  expect(workspace.graph.nodes.some((node) => node.kind === "decision" && node.title === "技术路线")).toBe(false);
+});
+
+test("creates mode-specific workflows independently from subject kind", () => {
+  const understand = createProjectWorkspace({ mode: "understand", title: "RFC 9457", subjectKind: "document" });
+  const systematize = createProjectWorkspace({ mode: "systematize", title: "Rust 工程经验", subjectKind: "topic" });
+  const research = createProjectWorkspace({ mode: "research", title: "WebGPU 是否值得采用", subjectKind: "question" });
+
+  expect(understand.project.workflow).toEqual({ mode: "understand", phase: "mapping" });
+  expect(systematize.project.workflow).toEqual({ mode: "systematize", phase: "inventory" });
+  expect(research.project.workflow).toEqual({ mode: "research", phase: "brief" });
+  expect(understand.project.subject.kind).toBe("document");
+  expect(systematize.graph.nodes.some((node) => node.title === "知识清单")).toBe(true);
+  expect(systematize.graph.nodes.find((node) => node.title === "冲突与疑点")?.kind).toBe("uncertainty");
+  expect(systematize.views.map((view) => view.kind)).toEqual([
+    "mind_map",
+    "network",
+    "knowledge_modules",
+    "skill_tree",
+    "learning_dependencies",
+    "learning_path",
+    "practice_manual"
+  ]);
+  expect(research.graph.nodes.some((node) => node.title === "核心研究问题")).toBe(true);
+  expect(research.graph.nodes.find((node) => node.title === "初始假设")?.kind).toBe("hypothesis");
+});
+
+test("only exposes a route view for a Research Project with a route subgraph", () => {
+  const research = createProjectWorkspace({ mode: "research", title: "技术选型", subjectKind: "question" });
+  const withRoute = createResearchRouteWorkspace("技术选型");
+
+  expect(research.views.map((view) => view.kind)).toEqual(["mind_map", "network"]);
+  expect(withRoute.views.map((view) => view.kind)).toEqual(["mind_map", "network", "route"]);
+  expect(withRoute.graph.nodes.some((node) => node.title === "方案 A：渐进接入")).toBe(true);
+});
+
+test("derives another Project from a node without copying the knowledge graph", () => {
+  const workspace = createKnowledgeWorkspace("Rust async runtime");
+  const focus = workspace.graph.nodes.find((node) => node.title === "约束与风险")!;
+  const derived = deriveProjectFromNode(workspace, { mode: "research", nodeId: focus.id, title: "验证 Rust async 风险" });
+
+  expect(derived.graph).toBe(workspace.graph);
+  expect(derived.project.mode).toBe("research");
+  expect(derived.project.graphId).toBe(workspace.project.graphId);
+  expect(derived.project.subject.rootNodeId).toBe(focus.id);
+  expect(derived.projects).toHaveLength(2);
+  expect(derived.space.projectIds).toEqual([workspace.project.id, derived.project.id]);
 });
 
 test("proposes a drill-down patch before writing to the graph", () => {
@@ -60,10 +111,10 @@ test("rejects a candidate patch without mutating the knowledge graph", () => {
 
 test("builds an explicit context packet from the selected node and scope", () => {
   const workspace = createKnowledgeWorkspace();
-  const rootSelection = buildKnowledgeSelection(workspace, workspace.subject.rootNodeId, "selected_and_neighbors");
-  const localSelection = buildKnowledgeSelection(workspace, workspace.subject.rootNodeId, "selected_node");
+  const rootSelection = buildKnowledgeSelection(workspace, workspace.project.subject.rootNodeId, "selected_and_neighbors");
+  const localSelection = buildKnowledgeSelection(workspace, workspace.project.subject.rootNodeId, "selected_node");
 
   expect(rootSelection.nodeIds.length).toBeGreaterThan(1);
   expect(rootSelection.depth).toBe(1);
-  expect(localSelection.nodeIds).toEqual([workspace.subject.rootNodeId]);
+  expect(localSelection.nodeIds).toEqual([workspace.project.subject.rootNodeId]);
 });
